@@ -21,6 +21,7 @@ How AI tools were used on this project, what was checked by hand, and where the 
 | 2. Solution skeleton | Replaced the ASP.NET template with `src/Meridian.Api` and two test projects, added `docker-compose.yml` (postgres, azurite), the API Dockerfile, OpenAPI generation on build and `/health` | TODO |
 | 3. Data model | Added the 13 entities, EF configurations, `AppDbContext`, the initial migration, and Testcontainers tests for constraints, indexes and foreign keys | TODO |
 | 4. Seeder and migrator | Added `--migrate-and-seed`, the idempotent `Seeder` with the membership overlap check, the `migrator` Compose service, and unit and integration tests. Ran the container twice against a temporary database | TODO |
+| 5. Errors and correlation ID | Added app exceptions, `ProblemDetailsExceptionHandler`, `CorrelationIdMiddleware`, FluentValidation registration and tests for every error type. Running the real app showed the correlation ID missing from console logs, because a dictionary scope prints as its type name; fixed and covered with a test | TODO |
 
 ## Where the AI was wrong or needed correcting
 
