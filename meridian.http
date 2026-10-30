@@ -1,0 +1,6 @@
+@meridian_HostAddress = http://localhost:5284
+
+GET {{meridian_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
