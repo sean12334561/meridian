@@ -18,6 +18,7 @@ How AI tools were used on this project, what was checked by hand, and where the 
 | Step | What the AI did | What was reviewed or changed |
 | --- | --- | --- |
 | 1. Repo setup | Extended `.gitignore` and `.gitattributes`, wrote `.env.example` and skeleton docs | TODO |
+| 2. Solution skeleton | Replaced the ASP.NET template with `src/Meridian.Api` and two test projects, added `docker-compose.yml` (postgres, azurite), the API Dockerfile, OpenAPI generation on build and `/health` | TODO |
 
 ## Where the AI was wrong or needed correcting
 
