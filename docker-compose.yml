@@ -15,6 +15,20 @@ services:
       timeout: 3s
       retries: 12
 
+  migrator:
+    build:
+      context: .
+      dockerfile: src/Meridian.Api/Dockerfile
+    command: ["--migrate-and-seed"]
+    environment:
+      ConnectionStrings__Default: ${ConnectionStrings__Default}
+      Seed__MemberStatesPath: /seed/member_states.csv
+    volumes:
+      - ./data/member_states.csv:/seed/member_states.csv:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   azurite:
     image: mcr.microsoft.com/azure-storage/azurite:latest
     command: azurite-blob --blobHost 0.0.0.0 --location /data --skipApiVersionCheck

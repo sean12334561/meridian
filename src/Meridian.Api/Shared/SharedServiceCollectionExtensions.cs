@@ -1,4 +1,5 @@
 using Meridian.Api.Shared.Data;
+using Meridian.Api.Shared.Seeding;
 using Microsoft.EntityFrameworkCore;
 
 namespace Meridian.Api.Shared;
@@ -10,6 +11,7 @@ public static class SharedServiceCollectionExtensions
         services.AddDbContextFactory<AppDbContext>(o => o
             .UseNpgsql(configuration.GetConnectionString("Default"))
             .UseSnakeCaseNamingConvention());
+        services.AddScoped<Seeder>();
 
         return services;
     }

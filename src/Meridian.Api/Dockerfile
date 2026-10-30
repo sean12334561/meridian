@@ -8,6 +8,8 @@ COPY src/ src/
 RUN dotnet publish src/Meridian.Api/Meridian.Api.csproj -c Release -o /app/publish --no-restore /p:UseAppHost=false /p:OpenApiGenerateDocumentsOnBuild=false
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
+# Npgsql probes for this library when it connects and logs an error if it's missing
+RUN apt-get update && apt-get install -y --no-install-recommends libgssapi-krb5-2 && rm -rf /var/lib/apt/lists/*
 USER $APP_UID
 WORKDIR /app
 EXPOSE 8080

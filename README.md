@@ -32,7 +32,7 @@ docker compose up --build
 
 A setting takes its value from the secret of the matching name, with `__` written as `--` and `_` as `-` (`ConnectionStrings--Default`, `Storage--ContainerSasUrl`). Settings with no matching secret keep the value from `.env.example`.
 
-TODO: which seed files go in `data/`.
+The `migrator` container applies migrations and seeds the users and `data/member_states.csv`, which is committed. It's safe to run again: it only adds rows that are missing. It uses `ConnectionStrings__Default` from `.env`, so a `.env` pointing at Azure migrates and seeds the Azure database.
 
 ## Users
 

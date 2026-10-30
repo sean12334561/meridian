@@ -24,4 +24,8 @@
     <ProjectReference Include="..\..\src\Meridian.Api\Meridian.Api.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="..\..\data\member_states.csv" Link="member_states.csv" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>
