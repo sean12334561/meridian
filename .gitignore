@@ -361,3 +361,37 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+##
+## Meridian
+##
+
+# Secrets: only the template is committed
+.env
+.env.*
+*.env
+!.env.example
+
+# Large source CSVs: only the seed file is committed
+data/*.csv
+!data/member_states.csv
+
+# Azurite data when run outside Docker
+__azurite_db_*.json
+__blobstorage__/
+__queuestorage__/
+
+# Angular
+.angular/
+web/dist/
+web/coverage/
+
+# Editors and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Claude Code local settings
+.claude/settings.local.json
+/CLAUDE.md
