@@ -1,6 +1,7 @@
 using Meridian.Api.Shared.Auth;
 using Meridian.Api.Shared.Data;
 using Meridian.Api.Shared.Errors;
+using Meridian.Api.Shared.History;
 using Meridian.Api.Shared.Observability;
 using Meridian.Api.Shared.Seeding;
 using Microsoft.EntityFrameworkCore;
@@ -15,6 +16,7 @@ public static class SharedServiceCollectionExtensions
             .UseNpgsql(configuration.GetConnectionString("Default"))
             .UseSnakeCaseNamingConvention());
         services.AddScoped<Seeder>();
+        services.AddScoped<HistoryWriter>();
 
         services.AddScoped<CorrelationContext>();
         services.AddScoped<ICorrelationContext>(s => s.GetRequiredService<CorrelationContext>());

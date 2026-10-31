@@ -23,6 +23,7 @@ How AI tools were used on this project, what was checked by hand, and where the 
 | 4. Seeder and migrator | Added `--migrate-and-seed`, the idempotent `Seeder` with the membership overlap check, the `migrator` Compose service, and unit and integration tests. Ran the container twice against a temporary database | TODO |
 | 5. Errors and correlation ID | Added app exceptions, `ProblemDetailsExceptionHandler`, `CorrelationIdMiddleware`, FluentValidation registration and tests for every error type. Running the real app showed the correlation ID missing from console logs, because a dictionary scope prints as its type name; fixed and covered with a test | TODO |
 | 6. Auth and users | Added `HeaderAuthenticationHandler`, `ICurrentUser`, the two policies, the Users slice and tests against real seeded users. Reading the generated contract showed wrong types the tests had missed (roles as integers, no 200 on `/api/me`); fixed and covered with a contract test | TODO |
+| 7. HistoryWriter and locks | Added `HistoryWriter` with per-row methods and set-based bulk methods for imports, the `Locks.ApprovedData` constant, and tests for row contents and for history committing and rolling back with its transaction. Bulk methods refuse to run outside a transaction | TODO |
 
 ## Where the AI was wrong or needed correcting
 
