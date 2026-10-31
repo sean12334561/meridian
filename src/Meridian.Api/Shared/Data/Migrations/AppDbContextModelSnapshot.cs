@@ -290,6 +290,9 @@ namespace Meridian.Api.Shared.Data.Migrations
                     b.HasKey("ImportId", "LineNo")
                         .HasName("pk_import_rows");
 
+                    b.HasIndex("ImportId", "VoteRef")
+                        .HasDatabaseName("ix_import_rows_import_id_vote_ref");
+
                     b.ToTable("import_rows", (string)null);
                 });
 

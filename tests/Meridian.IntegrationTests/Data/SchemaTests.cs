@@ -65,7 +65,7 @@ public class SchemaTests(PostgresFixture postgres) : IClassFixture<PostgresFixtu
 
         Assert.Equal(
             ["ix_conflicts_vote_id_target_proposed_value", "ix_country_votes_vote_id_country_code",
-             "ix_snapshot_publications_quarter", "ix_vote_history_vote_id", "ix_votes_vote_ref"],
+             "ix_import_rows_import_id_vote_ref", "ix_snapshot_publications_quarter", "ix_vote_history_vote_id", "ix_votes_vote_ref"],
             indexes.Order());
     }
 

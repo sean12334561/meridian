@@ -67,6 +67,7 @@ Unique indexes enforce rules; other indexes exist only on large tables searched 
 | `conflicts` | unique `(vote_id, target, proposed_value) WHERE status = 'Pending'` | Rule: no duplicate or reopened pending conflict (ING-12); `target` is never null, so NULLs can't slip past it |
 | `snapshot_publications` | unique `(quarter) WHERE withdrawn_at IS NULL` | Rule: one current publication per quarter |
 | `vote_history` | `(vote_id)` | Timeline lookup on a large table (HIS-04) |
+| `import_rows` | `(import_id, vote_ref)` | Each apply batch reads one batch of votes; without it every statement scans the import, and a decision waits on the lock for longer |
 | Primary keys | `import_rows (import_id, line_no)`, `snapshot_scores (snapshot_id, country_code)`, `snapshot_contributions (snapshot_id, country_code, vote_id)` | Automatic; also serve the report, ranking and breakdown queries |
 
 ### Growth and retention
