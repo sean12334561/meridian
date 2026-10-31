@@ -1,3 +1,6 @@
+using Meridian.Api.Features.Imports.Parsing;
+using Meridian.Api.Shared.Jobs;
+
 namespace Meridian.Api.Features.Imports;
 
 public static class ImportsFeatureExtensions
@@ -10,6 +13,9 @@ public static class ImportsFeatureExtensions
         services.AddScoped<UploadImport.Handler>();
         services.AddScoped<GetImports.Handler>();
         services.AddScoped<GetImport.Handler>();
+
+        services.AddScoped<ImportParser>();
+        services.AddKeyedScoped<IJobHandler, ImportJobHandler>(ImportJobPayload.JobType);
 
         return services;
     }

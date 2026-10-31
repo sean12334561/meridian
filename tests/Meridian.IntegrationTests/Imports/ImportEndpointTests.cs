@@ -195,6 +195,27 @@ public class ImportEndpointTests(PostgresFixture postgres, AzuriteFixture azurit
     }
 
     [Fact]
+    public async Task The_worker_picks_up_an_uploaded_file_and_parses_it()
+    {
+        await using WebApplicationFactory<Program> factory = new WebApplicationFactory<Program>().WithWebHostBuilder(b =>
+        {
+            b.UseSetting("ConnectionStrings:Default", postgres.ConnectionString);
+            b.UseSetting("Storage:ConnectionString", azurite.ConnectionString);
+            b.UseSetting("Worker:Enabled", "true");
+            b.UseSetting("Worker:PollIntervalMs", "20");
+        });
+        using HttpClient client = factory.CreateClient();
+        byte[] csv = "assembly_vote_id,session,vote_date,resolution_title,country_code,country_name,ballot,published_at\nMA/2024/001,79,2024-02-06,Title,BRA,Brazil,Y,2024-04-02T09:00:00Z\n"u8.ToArray();
+
+        HttpResponseMessage response = await client.SendAsync(UploadRequest("votes.csv", csv, Dana));
+        Guid id = (await response.Content.ReadFromJsonAsync<ImportCreatedDto>())!.ImportId;
+
+        await using AppDbContext db = postgres.CreateDbContext();
+        await Wait.Until(async () => await db.Imports.AsNoTracking().AnyAsync(i => i.Id == id && i.Phase == ImportPhase.Checking));
+        Assert.Equal(1, await db.ImportRows.CountAsync(r => r.ImportId == id));
+    }
+
+    [Fact]
     public async Task An_unknown_import_gets_a_404_problem()
     {
         using HttpRequestMessage request = new(HttpMethod.Get, $"/api/imports/{Guid.NewGuid()}");
