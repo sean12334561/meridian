@@ -1,4 +1,5 @@
 using Meridian.Api.Shared.Auth;
+using Meridian.Api.Shared.Paging;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -34,5 +35,22 @@ public class ImportsController : ControllerBase
     public Task<ImportDto> GetImport(Guid id, [FromServices] GetImport.Handler handler, CancellationToken ct)
     {
         return handler.Handle(id, ct);
+    }
+
+    [HttpGet("{id:guid}/report", Name = nameof(GetImportReport))]
+    [ProducesResponseType<ImportReportDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
+    public Task<ImportReportDto> GetImportReport(Guid id, [FromServices] GetImportReport.Handler handler, CancellationToken ct)
+    {
+        return handler.Handle(id, ct);
+    }
+
+    [HttpGet("{id:guid}/rows", Name = nameof(GetImportRows))]
+    [ProducesResponseType<PagedResult<ImportRowDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<HttpValidationProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
+    public Task<PagedResult<ImportRowDto>> GetImportRows(Guid id, [FromQuery] GetImportRows.Request request, [FromServices] GetImportRows.Handler handler, CancellationToken ct)
+    {
+        return handler.Handle(id, request, ct);
     }
 }

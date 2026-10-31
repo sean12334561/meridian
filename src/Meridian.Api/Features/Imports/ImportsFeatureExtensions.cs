@@ -14,10 +14,13 @@ public static class ImportsFeatureExtensions
         services.AddScoped<UploadImport.Handler>();
         services.AddScoped<GetImports.Handler>();
         services.AddScoped<GetImport.Handler>();
+        services.AddScoped<GetImportReport.Handler>();
+        services.AddScoped<GetImportRows.Handler>();
 
         services.AddScoped<ImportParser>();
         services.AddScoped<InFileChecks>();
         services.AddScoped<ApprovedDataClassifier>();
+        services.AddScoped<ImportReportWriter>();
         services.AddKeyedScoped<IJobHandler, ImportJobHandler>(ImportJobPayload.JobType);
 
         return services;

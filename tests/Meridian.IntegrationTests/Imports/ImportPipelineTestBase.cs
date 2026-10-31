@@ -19,13 +19,13 @@ public abstract class ImportPipelineTestBase(PostgresFixture postgres, AzuriteFi
 {
     protected const string Header = "assembly_vote_id,session,vote_date,resolution_title,country_code,country_name,ballot,published_at";
 
-    public async Task InitializeAsync()
+    public virtual async Task InitializeAsync()
     {
         await using AppDbContext db = postgres.CreateDbContext();
         await new Seeder(db, NullLogger<Seeder>.Instance).SeedAsync("member_states.csv");
     }
 
-    public Task DisposeAsync()
+    public virtual Task DisposeAsync()
     {
         return Task.CompletedTask;
     }
@@ -34,7 +34,7 @@ public abstract class ImportPipelineTestBase(PostgresFixture postgres, AzuriteFi
     {
         FixtureDbContextFactory factory = new(postgres);
 
-        return new ImportJobHandler(factory, new ImportParser(factory, Files()), new InFileChecks(factory), new ApprovedDataClassifier(factory));
+        return new ImportJobHandler(factory, new ImportParser(factory, Files()), new InFileChecks(factory), new ApprovedDataClassifier(factory), new ImportReportWriter(factory));
     }
 
     protected Task Run(Import import)

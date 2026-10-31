@@ -15,7 +15,8 @@ public class ImportJobHandler(
     IDbContextFactory<AppDbContext> dbFactory,
     ImportParser parser,
     InFileChecks inFileChecks,
-    ApprovedDataClassifier classifier) : IJobHandler
+    ApprovedDataClassifier classifier,
+    ImportReportWriter reportWriter) : IJobHandler
 {
     public async Task RunAsync(ClaimedJob job, CancellationToken ct)
     {
@@ -37,7 +38,7 @@ public class ImportJobHandler(
             }
 
             await classifier.RunAsync(import, ct);
-            await MarkCompletedAsync(importId, ct);
+            await reportWriter.CompleteAsync(importId, ct);
         }
         catch (ImportFileException ex)
         {
@@ -49,17 +50,6 @@ public class ImportJobHandler(
     public Task OnFailedAsync(ClaimedJob job, string error, CancellationToken ct)
     {
         return MarkFailedAsync(job.ReadPayload<ImportJobPayload>().ImportId, error, ct);
-    }
-
-    private async Task MarkCompletedAsync(Guid importId, CancellationToken ct)
-    {
-        await using AppDbContext db = await dbFactory.CreateDbContextAsync(ct);
-        await db.Imports
-            .Where(i => i.Id == importId)
-            .ExecuteUpdateAsync(s => s
-                .SetProperty(i => i.Status, ImportStatus.Completed)
-                .SetProperty(i => i.Phase, ImportPhase.Done)
-                .SetProperty(i => i.CompletedAt, DateTimeOffset.UtcNow), ct);
     }
 
     private async Task MarkFailedAsync(Guid importId, string error, CancellationToken ct)

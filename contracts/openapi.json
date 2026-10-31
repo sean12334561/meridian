@@ -244,6 +244,175 @@
           }
         }
       }
+    },
+    "/api/imports/{id}/report": {
+      "get": {
+        "tags": [
+          "Imports"
+        ],
+        "operationId": "GetImportReport",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": { }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": { }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportReportDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": { }
+            }
+          }
+        }
+      }
+    },
+    "/api/imports/{id}/rows": {
+      "get": {
+        "tags": [
+          "Imports"
+        ],
+        "operationId": "GetImportRows",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Outcome",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/RowOutcome"
+            }
+          },
+          {
+            "name": "Normalized",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "Page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "PageSize",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": { }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": { }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagedResultOfImportRowDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              },
+              "application/json": { }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": { }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -379,6 +548,159 @@
           "Done"
         ]
       },
+      "ImportReportDto": {
+        "required": [
+          "totals",
+          "conflictsOpened",
+          "votes"
+        ],
+        "type": "object",
+        "properties": {
+          "totals": {
+            "$ref": "#/components/schemas/ImportReportTotals"
+          },
+          "conflictsOpened": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "votes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VoteReportDto"
+            }
+          }
+        }
+      },
+      "ImportReportTotals": {
+        "required": [
+          "rows",
+          "new",
+          "unchanged",
+          "duplicate",
+          "invalid",
+          "contradiction",
+          "conflict",
+          "previouslyDecided",
+          "alreadyPending",
+          "normalized"
+        ],
+        "type": "object",
+        "properties": {
+          "rows": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "new": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "unchanged": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "duplicate": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "invalid": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "contradiction": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "conflict": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "previouslyDecided": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "alreadyPending": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "normalized": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "ImportRowDto": {
+        "required": [
+          "lineNo",
+          "rawText",
+          "voteRef",
+          "countryCode",
+          "ballot",
+          "outcome",
+          "reason",
+          "normalizations",
+          "conflictId"
+        ],
+        "type": "object",
+        "properties": {
+          "lineNo": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "rawText": {
+            "type": "string"
+          },
+          "voteRef": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "countryCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "ballot": {
+            "maxLength": 1,
+            "minLength": 1,
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "char"
+          },
+          "outcome": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/RowOutcome"
+              }
+            ]
+          },
+          "reason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "normalizations": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "conflictId": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int64"
+          }
+        }
+      },
       "ImportStatus": {
         "enum": [
           "Pending",
@@ -386,6 +708,35 @@
           "Completed",
           "Failed"
         ]
+      },
+      "PagedResultOfImportRowDto": {
+        "required": [
+          "items",
+          "page",
+          "pageSize",
+          "total"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ImportRowDto"
+            }
+          },
+          "page": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pageSize": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "total": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
       },
       "ProblemDetails": {
         "type": "object",
@@ -429,6 +780,18 @@
           "Admin"
         ]
       },
+      "RowOutcome": {
+        "enum": [
+          "New",
+          "Unchanged",
+          "Duplicate",
+          "Invalid",
+          "Contradiction",
+          "Conflict",
+          "PreviouslyDecided",
+          null
+        ]
+      },
       "UserDto": {
         "required": [
           "id",
@@ -446,6 +809,65 @@
           },
           "role": {
             "$ref": "#/components/schemas/Role"
+          }
+        }
+      },
+      "VoteDetailsStatus": {
+        "enum": [
+          "Same",
+          "Conflict",
+          "PreviouslyDecided",
+          "DiffersInFile",
+          "NotStored"
+        ]
+      },
+      "VoteReportDto": {
+        "required": [
+          "voteRef",
+          "new",
+          "unchanged",
+          "duplicate",
+          "invalid",
+          "contradiction",
+          "conflict",
+          "previouslyDecided",
+          "details"
+        ],
+        "type": "object",
+        "properties": {
+          "voteRef": {
+            "type": "string"
+          },
+          "new": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "unchanged": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "duplicate": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "invalid": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "contradiction": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "conflict": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "previouslyDecided": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "details": {
+            "$ref": "#/components/schemas/VoteDetailsStatus"
           }
         }
       }

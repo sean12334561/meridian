@@ -30,6 +30,7 @@ How AI tools were used on this project, what was checked by hand, and where the 
 | 11. Parsing | Added the import job handler, row reader and validator, binary `COPY` and progress, with tests and a timed run of the real files. A test showed one stray quote made CsvHelper merge later rows and lose them, so the reader now treats each line as one row. Reading the real output showed normalizations recorded on rejected rows; fixed and covered | TODO |
 | 12. In-file checks | Added duplicate and contradiction checks in SQL, with tests and a timed run of the real files. The LLD's order could hide differing details, so they are checked first. A test timed out because the planner had no statistics on freshly loaded rows; fixed with `ANALYZE` and a longer timeout | TODO |
 | 13. Applying | Added `ApprovedDataClassifier`: batches of 500 votes under the lock create votes, classify rows, insert ballots and open conflicts, with the section 7.2 scenario as tests. Done unattended; the choices are in `AUTONOMOUS_DECISIONS.md` | TODO |
+| 14. Report and rows | Added `ImportReportWriter`, report and rows endpoints, paging helpers and `ApiTestBase`, with a timed run of the real files. Done unattended | TODO |
 
 ## Where the AI was wrong or needed correcting
 
