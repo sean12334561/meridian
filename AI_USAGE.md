@@ -40,6 +40,7 @@ How AI tools were used on this project, what was checked by hand, and where the 
 | 21. Containers and telemetry | Added `api` and `worker` to Compose, the worker `Activity`, and Application Insights through OpenTelemetry. Ran the whole stack locally with the historic file. Generating the client showed all request bodies shared one schema in the contract, which no backend test had caught; fixed and covered. Done unattended | TODO |
 | 22. Angular scaffold | Created `web/` with the generated client, the three interceptors, the user switcher and the app shell. Done unattended | TODO |
 | 23. Imports screens | Added upload, history with live status, and the report with totals, rows and votes. Done unattended | TODO |
+| 24. Review screens | Added the conflict inbox and the side-by-side detail, with the 409 shown as a message and the current state. Done unattended | TODO |
 
 ## Where the AI was wrong or needed correcting
 
