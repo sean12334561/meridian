@@ -17,6 +17,7 @@ public static class ImportsFeatureExtensions
 
         services.AddScoped<ImportParser>();
         services.AddScoped<InFileChecks>();
+        services.AddScoped<ApprovedDataClassifier>();
         services.AddKeyedScoped<IJobHandler, ImportJobHandler>(ImportJobPayload.JobType);
 
         return services;

@@ -29,6 +29,7 @@ How AI tools were used on this project, what was checked by hand, and where the 
 | 10. Imports endpoints | Added upload, list and status endpoints, with the size limit read from configuration, and tests against real PostgreSQL and Azurite. A test on real Kestrel showed that an oversized upload reset the connection before the client saw the 413, which the in-memory test server had hidden; fixed and covered | TODO |
 | 11. Parsing | Added the import job handler, row reader and validator, binary `COPY` and progress, with tests and a timed run of the real files. A test showed one stray quote made CsvHelper merge later rows and lose them, so the reader now treats each line as one row. Reading the real output showed normalizations recorded on rejected rows; fixed and covered | TODO |
 | 12. In-file checks | Added duplicate and contradiction checks in SQL, with tests and a timed run of the real files. The LLD's order could hide differing details, so they are checked first. A test timed out because the planner had no statistics on freshly loaded rows; fixed with `ANALYZE` and a longer timeout | TODO |
+| 13. Applying | Added `ApprovedDataClassifier`: batches of 500 votes under the lock create votes, classify rows, insert ballots and open conflicts, with the section 7.2 scenario as tests. Done unattended; the choices are in `AUTONOMOUS_DECISIONS.md` | TODO |
 
 ## Where the AI was wrong or needed correcting
 

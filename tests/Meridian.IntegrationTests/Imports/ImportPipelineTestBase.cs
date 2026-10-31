@@ -34,12 +34,20 @@ public abstract class ImportPipelineTestBase(PostgresFixture postgres, AzuriteFi
     {
         FixtureDbContextFactory factory = new(postgres);
 
-        return new ImportJobHandler(factory, new ImportParser(factory, Files()), new InFileChecks(factory));
+        return new ImportJobHandler(factory, new ImportParser(factory, Files()), new InFileChecks(factory), new ApprovedDataClassifier(factory));
     }
 
     protected Task Run(Import import)
     {
         return Handler().RunAsync(Job(import), default);
+    }
+
+    // The phases that only look at the file: their tests can reuse vote references
+    protected async Task RunChecks(Import import)
+    {
+        FixtureDbContextFactory factory = new(postgres);
+        await new ImportParser(factory, Files()).ParseAsync(import, default);
+        await new InFileChecks(factory).RunAsync(import.Id, default);
     }
 
     protected static ClaimedJob Job(Import import)

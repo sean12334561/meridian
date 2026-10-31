@@ -22,8 +22,8 @@ public class ImportParsingTests(PostgresFixture postgres, AzuriteFixture azurite
         await Run(import);
 
         Import stored = await Reload(import);
-        Assert.Equal(ImportStatus.Running, stored.Status);
-        Assert.Equal(ImportPhase.Applying, stored.Phase);
+        Assert.Equal(ImportStatus.Completed, stored.Status);
+        Assert.Equal(ImportPhase.Done, stored.Phase);
         Assert.Equal(4, stored.ProcessedRows);
         Assert.Equal(4, stored.TotalRows);
 
@@ -40,10 +40,10 @@ public class ImportParsingTests(PostgresFixture postgres, AzuriteFixture azurite
         Assert.Equal("Brazil", good.CountryName);
         Assert.Equal('Y', good.Ballot);
         Assert.Equal(new DateTimeOffset(2024, 4, 2, 9, 0, 0, TimeSpan.Zero), good.PublishedAt);
-        Assert.Null(good.Outcome);
+        Assert.Equal(RowOutcome.New, rows[0].Outcome);
         Assert.Null(good.Normalizations);
 
-        Assert.Null(rows[1].Outcome);
+        Assert.Equal(RowOutcome.New, rows[1].Outcome);
         using JsonDocument normalizations = JsonDocument.Parse(rows[1].Normalizations!);
         Assert.Equal("bra", normalizations.RootElement[0].GetProperty("original").GetString());
 
@@ -111,7 +111,7 @@ public class ImportParsingTests(PostgresFixture postgres, AzuriteFixture azurite
         await Upload(import, Encoding.UTF8.GetBytes($"{Header}\n{Good}\n"));
         await Run(import);
 
-        Assert.Equal(ImportPhase.Applying, (await Reload(import)).Phase);
+        Assert.Equal(ImportPhase.Done, (await Reload(import)).Phase);
         Assert.Equal(1, await CountRows(import));
     }
 
@@ -124,7 +124,7 @@ public class ImportParsingTests(PostgresFixture postgres, AzuriteFixture azurite
         await Run(await Reload(import));
 
         Assert.Equal(1, await CountRows(import));
-        Assert.Equal(ImportPhase.Applying, (await Reload(import)).Phase);
+        Assert.Equal(ImportPhase.Done, (await Reload(import)).Phase);
     }
 
     [Fact]

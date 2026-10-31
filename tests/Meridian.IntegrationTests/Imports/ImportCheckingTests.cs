@@ -165,7 +165,7 @@ public class ImportCheckingTests(PostgresFixture postgres, AzuriteFixture azurit
     [Fact]
     public async Task A_retry_at_the_checking_phase_does_not_parse_again()
     {
-        Import import = await RunFile(Row("MA/2024/001", "BRA", "Y"));
+        Import import = await RunFile(Row("MA/2024/099", "BRA", "Y"));
         await using (AppDbContext db = postgres.CreateDbContext())
         {
             await db.Imports.Where(i => i.Id == import.Id).ExecuteUpdateAsync(s => s.SetProperty(i => i.Phase, ImportPhase.Checking));
@@ -173,7 +173,7 @@ public class ImportCheckingTests(PostgresFixture postgres, AzuriteFixture azurit
 
         await Run(await Reload(import));
 
-        Assert.Equal(ImportPhase.Applying, (await Reload(import)).Phase);
+        Assert.Equal(ImportPhase.Done, (await Reload(import)).Phase);
         Assert.Equal(1, await CountRows(import));
     }
 
@@ -185,7 +185,7 @@ public class ImportCheckingTests(PostgresFixture postgres, AzuriteFixture azurit
     private async Task<Import> RunFile(params string[] rows)
     {
         Import import = await CreateImport($"{Header}\n{string.Join('\n', rows)}\n");
-        await Run(import);
+        await RunChecks(import);
         return import;
     }
 

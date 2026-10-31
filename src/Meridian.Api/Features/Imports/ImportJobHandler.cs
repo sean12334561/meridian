@@ -11,7 +11,11 @@ namespace Meridian.Api.Features.Imports;
 /// Runs the import's phases. Each phase commits the move to the next, so a retry continues from
 /// imports.phase: finished work can't run twice, because nothing may be deleted.
 /// </summary>
-public class ImportJobHandler(IDbContextFactory<AppDbContext> dbFactory, ImportParser parser, InFileChecks inFileChecks) : IJobHandler
+public class ImportJobHandler(
+    IDbContextFactory<AppDbContext> dbFactory,
+    ImportParser parser,
+    InFileChecks inFileChecks,
+    ApprovedDataClassifier classifier) : IJobHandler
 {
     public async Task RunAsync(ClaimedJob job, CancellationToken ct)
     {
@@ -31,6 +35,9 @@ public class ImportJobHandler(IDbContextFactory<AppDbContext> dbFactory, ImportP
             {
                 await inFileChecks.RunAsync(importId, ct);
             }
+
+            await classifier.RunAsync(import, ct);
+            await MarkCompletedAsync(importId, ct);
         }
         catch (ImportFileException ex)
         {
@@ -42,6 +49,17 @@ public class ImportJobHandler(IDbContextFactory<AppDbContext> dbFactory, ImportP
     public Task OnFailedAsync(ClaimedJob job, string error, CancellationToken ct)
     {
         return MarkFailedAsync(job.ReadPayload<ImportJobPayload>().ImportId, error, ct);
+    }
+
+    private async Task MarkCompletedAsync(Guid importId, CancellationToken ct)
+    {
+        await using AppDbContext db = await dbFactory.CreateDbContextAsync(ct);
+        await db.Imports
+            .Where(i => i.Id == importId)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(i => i.Status, ImportStatus.Completed)
+                .SetProperty(i => i.Phase, ImportPhase.Done)
+                .SetProperty(i => i.CompletedAt, DateTimeOffset.UtcNow), ct);
     }
 
     private async Task MarkFailedAsync(Guid importId, string error, CancellationToken ct)
