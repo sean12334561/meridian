@@ -38,6 +38,7 @@ How AI tools were used on this project, what was checked by hand, and where the 
 | 19. Snapshot reads | Added the snapshot list, detail with ranking and rules, and country breakdown. Done unattended | TODO |
 | 20. Publishing | Added `PublishSnapshot` with supersede and a 409 on a concurrent publish, and merged publications into the vote timeline. Done unattended | TODO |
 | 21. Containers and telemetry | Added `api` and `worker` to Compose, the worker `Activity`, and Application Insights through OpenTelemetry. Ran the whole stack locally with the historic file. Generating the client showed all request bodies shared one schema in the contract, which no backend test had caught; fixed and covered. Done unattended | TODO |
+| 22. Angular scaffold | Created `web/` with the generated client, the three interceptors, the user switcher and the app shell. Done unattended | TODO |
 
 ## Where the AI was wrong or needed correcting
 
