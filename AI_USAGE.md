@@ -33,6 +33,7 @@ How AI tools were used on this project, what was checked by hand, and where the 
 | 14. Report and rows | Added `ImportReportWriter`, report and rows endpoints, paging helpers and `ApiTestBase`, with a timed run of the real files. Done unattended | TODO |
 | 15. Conflicts | Added conflict reads and `DecideConflict` with the conditional update, supersede and `DecisionNotApplied`, with tests for races, previously-decided cases and details. Done unattended | TODO |
 | 16. Vote reads and timeline | Added the vote list, detail and timeline, with a shared `VoteFilter`. Done unattended | TODO |
+| 17. Positions | Added `SetPosition` and `SetPositionsBulk`, admin only, with field errors and one history row per vote. Done unattended | TODO |
 
 ## Where the AI was wrong or needed correcting
 

@@ -33,4 +33,21 @@ public class VotesController : ControllerBase
     {
         return handler.Handle(id, ct);
     }
+
+    [HttpPut("{id:long}/position", Name = nameof(SetPosition)), Authorize(Policy = Policies.Admin)]
+    [ProducesResponseType<VoteDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType<HttpValidationProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
+    public Task<VoteDto> SetPosition(long id, SetPosition.Request request, [FromServices] SetPosition.Handler handler, CancellationToken ct)
+    {
+        return handler.Handle(id, request, ct);
+    }
+
+    [HttpPost("positions/bulk", Name = nameof(SetPositionsBulk)), Authorize(Policy = Policies.Admin)]
+    [ProducesResponseType<BulkPositionResultDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType<HttpValidationProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
+    public Task<BulkPositionResultDto> SetPositionsBulk(SetPositionsBulk.Request request, [FromServices] SetPositionsBulk.Handler handler, CancellationToken ct)
+    {
+        return handler.Handle(request, ct);
+    }
 }

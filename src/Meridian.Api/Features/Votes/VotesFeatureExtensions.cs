@@ -7,6 +7,8 @@ public static class VotesFeatureExtensions
         services.AddScoped<GetVotes.Handler>();
         services.AddScoped<GetVote.Handler>();
         services.AddScoped<GetVoteTimeline.Handler>();
+        services.AddScoped<SetPosition.Handler>();
+        services.AddScoped<SetPositionsBulk.Handler>();
 
         return services;
     }
