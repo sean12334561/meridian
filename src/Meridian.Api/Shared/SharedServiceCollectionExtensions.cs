@@ -1,3 +1,4 @@
+using Meridian.Api.Shared.Auth;
 using Meridian.Api.Shared.Data;
 using Meridian.Api.Shared.Errors;
 using Meridian.Api.Shared.Observability;
@@ -17,6 +18,9 @@ public static class SharedServiceCollectionExtensions
 
         services.AddScoped<CorrelationContext>();
         services.AddScoped<ICorrelationContext>(s => s.GetRequiredService<CorrelationContext>());
+
+        services.AddHttpContextAccessor();
+        services.AddScoped<ICurrentUser, CurrentUser>();
 
         services.AddExceptionHandler<ProblemDetailsExceptionHandler>();
         services.AddProblemDetails(o => o.CustomizeProblemDetails = c =>
