@@ -1,5 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
+using Azure.Monitor.OpenTelemetry.AspNetCore;
 using FluentValidation;
 using Meridian.Api.Features.Conflicts;
 using Meridian.Api.Features.Imports;
@@ -12,6 +14,8 @@ using Meridian.Api.Shared.Jobs;
 using Meridian.Api.Shared.Observability;
 using Meridian.Api.Shared.Seeding;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.OpenApi;
+using OpenTelemetry.Trace;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
@@ -31,10 +35,16 @@ builder.Services.AddAuthorizationBuilder()
     .AddPolicy(Policies.Admin, p => p.RequireRole("Admin"));
 builder.Services.AddControllers().AddJsonOptions(o => ConfigureJson(o.JsonSerializerOptions));
 builder.Services.ConfigureHttpJsonOptions(o => ConfigureJson(o.SerializerOptions));    // read by OpenAPI
-builder.Services.AddOpenApi();
+builder.Services.AddOpenApi(o => o.CreateSchemaReferenceId = SchemaId);
 builder.Services.AddHealthChecks();
 if (builder.Configuration.GetValue<bool>("Worker:Enabled"))
     builder.Services.AddHostedService<JobWorker>();
+if (!string.IsNullOrEmpty(builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"]))
+{
+    builder.Services.AddOpenTelemetry()
+        .UseAzureMonitor()
+        .WithTracing(t => t.AddSource(JobWorker.ActivitySourceName));
+}
 
 WebApplication app = builder.Build();
 
@@ -60,4 +70,12 @@ static void ConfigureJson(JsonSerializerOptions options)
 {
     options.Converters.Add(new JsonStringEnumConverter());
     options.NumberHandling = JsonNumberHandling.Strict;
+}
+
+// Every use case nests a class called Request: without the outer name they share one schema
+static string? SchemaId(JsonTypeInfo type)
+{
+    string? id = OpenApiOptions.CreateDefaultSchemaReferenceId(type);
+
+    return id is not null && type.Type.DeclaringType is { } useCase ? useCase.Name + id : id;
 }

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Microsoft.Extensions.Options;
 
 namespace Meridian.Api.Shared.Jobs;
@@ -5,6 +6,10 @@ namespace Meridian.Api.Shared.Jobs;
 public class JobWorker(IServiceScopeFactory scopes, IOptions<WorkerOptions> options, ILogger<JobWorker> logger)
     : BackgroundService
 {
+    public const string ActivitySourceName = "Meridian.Jobs";
+
+    private static readonly ActivitySource Activities = new(ActivitySourceName);
+
     protected override Task ExecuteAsync(CancellationToken stoppingToken)
     {
         return Task.WhenAll(Enumerable.Range(0, options.Value.Concurrency).Select(_ => LoopAsync(stoppingToken)));
@@ -42,6 +47,9 @@ public class JobWorker(IServiceScopeFactory scopes, IOptions<WorkerOptions> opti
 
         using IDisposable? logScope = logger.BeginScope(
             "JobId:{JobId} CorrelationId:{CorrelationId}", job.Id, job.CorrelationId);
+        using Activity? activity = Activities.StartActivity($"job {job.Type}");
+        activity?.SetTag("job.id", job.Id);
+        activity?.SetTag("correlation.id", job.CorrelationId);
         await using IAsyncDisposable heartbeat = queue.StartHeartbeat(job);
 
         IJobHandler? handler = null;

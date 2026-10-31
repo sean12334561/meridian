@@ -266,17 +266,17 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/Request"
+                "$ref": "#/components/schemas/SetPositionRequest"
               }
             },
             "text/json": {
               "schema": {
-                "$ref": "#/components/schemas/Request"
+                "$ref": "#/components/schemas/SetPositionRequest"
               }
             },
             "application/*+json": {
               "schema": {
-                "$ref": "#/components/schemas/Request"
+                "$ref": "#/components/schemas/SetPositionRequest"
               }
             }
           },
@@ -350,17 +350,17 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/Request"
+                "$ref": "#/components/schemas/SetPositionsBulkRequest"
               }
             },
             "text/json": {
               "schema": {
-                "$ref": "#/components/schemas/Request"
+                "$ref": "#/components/schemas/SetPositionsBulkRequest"
               }
             },
             "application/*+json": {
               "schema": {
-                "$ref": "#/components/schemas/Request"
+                "$ref": "#/components/schemas/SetPositionsBulkRequest"
               }
             }
           },
@@ -477,17 +477,17 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/Request"
+                "$ref": "#/components/schemas/CreateSnapshotRequest"
               }
             },
             "text/json": {
               "schema": {
-                "$ref": "#/components/schemas/Request"
+                "$ref": "#/components/schemas/CreateSnapshotRequest"
               }
             },
             "application/*+json": {
               "schema": {
-                "$ref": "#/components/schemas/Request"
+                "$ref": "#/components/schemas/CreateSnapshotRequest"
               }
             }
           },
@@ -740,17 +740,17 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/Request"
+                "$ref": "#/components/schemas/PublishSnapshotRequest"
               }
             },
             "text/json": {
               "schema": {
-                "$ref": "#/components/schemas/Request"
+                "$ref": "#/components/schemas/PublishSnapshotRequest"
               }
             },
             "application/*+json": {
               "schema": {
-                "$ref": "#/components/schemas/Request"
+                "$ref": "#/components/schemas/PublishSnapshotRequest"
               }
             }
           },
@@ -1351,17 +1351,17 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/Request"
+                "$ref": "#/components/schemas/DecideConflictRequest"
               }
             },
             "text/json": {
               "schema": {
-                "$ref": "#/components/schemas/Request"
+                "$ref": "#/components/schemas/DecideConflictRequest"
               }
             },
             "application/*+json": {
               "schema": {
-                "$ref": "#/components/schemas/Request"
+                "$ref": "#/components/schemas/DecideConflictRequest"
               }
             }
           },
@@ -1691,6 +1691,83 @@
             "type": "boolean"
           }
         }
+      },
+      "CreateSnapshotRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "from": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "to": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "session": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "voteIds": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          "excludeMissingPositions": {
+            "type": "boolean"
+          },
+          "minCountedVotes": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "DecideConflictRequest": {
+        "type": "object",
+        "properties": {
+          "decision": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/Decision"
+              }
+            ]
+          },
+          "note": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "Decision": {
+        "enum": [
+          "Accept",
+          "Reject",
+          null
+        ]
       },
       "HttpValidationProblemDetails": {
         "type": "object",
@@ -2160,18 +2237,20 @@
           }
         }
       },
-      "Request": {
+      "PublishSnapshotRequest": {
         "type": "object",
         "properties": {
-          "desiredOutcome": {
+          "quarter": {
             "type": [
               "null",
               "string"
             ]
           },
-          "weight": {
-            "type": "integer",
-            "format": "int32"
+          "reason": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -2192,6 +2271,72 @@
           "PreviouslyDecided",
           null
         ]
+      },
+      "SetPositionRequest": {
+        "type": "object",
+        "properties": {
+          "desiredOutcome": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "weight": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "SetPositionsBulkRequest": {
+        "type": "object",
+        "properties": {
+          "desiredOutcome": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "weight": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "onlyMissing": {
+            "type": "boolean"
+          },
+          "session": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "from": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "to": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "q": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "hasPosition": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          }
+        }
       },
       "SnapshotCreatedDto": {
         "required": [

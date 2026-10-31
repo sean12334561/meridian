@@ -37,6 +37,7 @@ How AI tools were used on this project, what was checked by hand, and where the 
 | 18. Snapshot calculation | Added `CreateSnapshot` and `SnapshotJobHandler` with the set-based scoring SQL, with tests for the assignment example, abstention, ties, the minimum and immutability. Done unattended | TODO |
 | 19. Snapshot reads | Added the snapshot list, detail with ranking and rules, and country breakdown. Done unattended | TODO |
 | 20. Publishing | Added `PublishSnapshot` with supersede and a 409 on a concurrent publish, and merged publications into the vote timeline. Done unattended | TODO |
+| 21. Containers and telemetry | Added `api` and `worker` to Compose, the worker `Activity`, and Application Insights through OpenTelemetry. Ran the whole stack locally with the historic file. Generating the client showed all request bodies shared one schema in the contract, which no backend test had caught; fixed and covered. Done unattended | TODO |
 
 ## Where the AI was wrong or needed correcting
 

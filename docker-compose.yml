@@ -1,3 +1,11 @@
+x-app-environment: &app-environment
+  ConnectionStrings__Default: ${ConnectionStrings__Default}
+  Storage__ContainerSasUrl: ${Storage__ContainerSasUrl:-}
+  Storage__ConnectionString: ${Storage__ConnectionString:-}
+  Storage__Container: ${Storage__Container:-imports}
+  APPLICATIONINSIGHTS_CONNECTION_STRING: ${APPLICATIONINSIGHTS_CONNECTION_STRING:-}
+  Upload__MaxBytes: ${Upload__MaxBytes:-200000000}
+
 services:
   postgres:
     image: postgres:17
@@ -16,6 +24,7 @@ services:
       retries: 12
 
   migrator:
+    image: meridian-api
     build:
       context: .
       dockerfile: src/Meridian.Api/Dockerfile
@@ -27,6 +36,30 @@ services:
       - ./data/member_states.csv:/seed/member_states.csv:ro
     depends_on:
       postgres:
+        condition: service_healthy
+
+  api:
+    image: meridian-api
+    environment:
+      <<: *app-environment
+      Worker__Enabled: "false"
+    depends_on:
+      migrator:
+        condition: service_completed_successfully
+      azurite:
+        condition: service_healthy
+
+  worker:
+    image: meridian-api
+    environment:
+      <<: *app-environment
+      Worker__Enabled: "true"
+      Worker__Concurrency: ${Worker__Concurrency:-2}
+      Worker__PollIntervalMs: ${Worker__PollIntervalMs:-2000}
+    depends_on:
+      migrator:
+        condition: service_completed_successfully
+      azurite:
         condition: service_healthy
 
   azurite:
