@@ -62,6 +62,15 @@ services:
       azurite:
         condition: service_healthy
 
+  web:
+    image: meridian-web
+    build:
+      context: web
+    ports:
+      - "127.0.0.1:8080:80"
+    depends_on:
+      - api
+
   azurite:
     image: mcr.microsoft.com/azure-storage/azurite:latest
     command: azurite-blob --blobHost 0.0.0.0 --location /data --skipApiVersionCheck
