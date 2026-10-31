@@ -42,6 +42,7 @@ How AI tools were used on this project, what was checked by hand, and where the 
 | 23. Imports screens | Added upload, history with live status, and the report with totals, rows and votes. Done unattended | TODO |
 | 24. Review screens | Added the conflict inbox and the side-by-side detail, with the 409 shown as a message and the current state. Done unattended | TODO |
 | 25. Votes screens | Added the vote list with filters and bulk positions, and the vote detail with the position form, timeline and ballots. Done unattended | TODO |
+| 26. Snapshot screens | Added the create form with the missing-positions flow, the list, the detail with rules, ranking and publishing, and the country breakdown. Done unattended | TODO |
 
 ## Where the AI was wrong or needed correcting
 
