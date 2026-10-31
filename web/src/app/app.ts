@@ -3,6 +3,7 @@ import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { CurrentUserService } from './core/user/current-user.service';
 import { UserSwitcherComponent } from './core/user/user-switcher.component';
+import { errorMessage } from './shared/problem-details';
 
 @Component({
   selector: 'app-root',
@@ -20,6 +21,9 @@ import { UserSwitcherComponent } from './core/user/user-switcher.component';
       <app-user-switcher />
     </mat-toolbar>
     <main>
+      @if (error(); as message) {
+        <div class="banner error">{{ message }} Users could not be loaded, so refresh the page once the server is up.</div>
+      }
       @if (ready()) {
         <router-outlet />
       }
@@ -39,10 +43,13 @@ export class App implements OnInit {
   private readonly current = inject(CurrentUserService);
 
   protected readonly ready = signal(false);
+  protected readonly error = signal<string | null>(null);
 
   async ngOnInit(): Promise<void> {
     try {
       await this.current.load();
+    } catch (error) {
+      this.error.set(errorMessage(error));
     } finally {
       this.ready.set(true);
     }

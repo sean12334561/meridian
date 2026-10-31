@@ -34,7 +34,7 @@ import { StatusBadgeComponent } from '../../shared/status-badge.component';
 
       <div class="sides">
         <section>
-          <h2>Approved value</h2>
+          <h2>{{ current.status === 'Accepted' ? 'Previous value' : 'Approved value' }}</h2>
           <p class="value">{{ current.approvedValue }}</p>
           <p class="muted">
             {{ current.approvedSource.fileName }}
@@ -49,7 +49,7 @@ import { StatusBadgeComponent } from '../../shared/status-badge.component';
           </p>
         </section>
         <section>
-          <h2>Proposed value</h2>
+          <h2>{{ current.status === 'Accepted' ? 'Now approved' : 'Proposed value' }}</h2>
           <p class="value">{{ current.proposedValue }}</p>
           <p class="muted">
             {{ current.proposedSource.fileName }}, line {{ current.proposedSource.line }}

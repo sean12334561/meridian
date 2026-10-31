@@ -1,5 +1,6 @@
 import { DatePipe } from '@angular/common';
-import { Component, OnDestroy, OnInit, computed, inject, input, signal } from '@angular/core';
+import { Component, DestroyRef, OnInit, computed, inject, input, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
@@ -8,6 +9,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { Api } from '../../core/api/api';
 import { getImport, getImportReport, getImportRows } from '../../core/api/functions';
 import { ImportDto, ImportReportDto, PagedResultOfImportRowDto, RowOutcome } from '../../core/api/models';
+import { PollResult, isPermanentFailure, poll } from '../../shared/poll';
 import { errorMessage } from '../../shared/problem-details';
 import { StatusBadgeComponent } from '../../shared/status-badge.component';
 
@@ -44,6 +46,14 @@ const flagged: RowOutcome[] = ['Invalid', 'Duplicate', 'Contradiction', 'Conflic
     }
 
     @if (report(); as result) {
+      @if (result.identicalTo; as earlier) {
+        <div class="banner info">
+          This file is identical to
+          <a [routerLink]="['/imports', earlier.importId]">{{ earlier.fileName }}</a>,
+          uploaded {{ earlier.uploadedAt | date: 'yyyy-MM-dd HH:mm' }}.
+        </div>
+      }
+
       <h2>Totals</h2>
       <div class="totals">
         @for (total of totals(); track total.label) {
@@ -126,9 +136,9 @@ const flagged: RowOutcome[] = ['Invalid', 'Duplicate', 'Contradiction', 'Conflic
     .outcome { width: 14rem; }
   `,
 })
-export class ImportReportComponent implements OnInit, OnDestroy {
+export class ImportReportComponent implements OnInit {
   private readonly api = inject(Api);
-  private timer?: ReturnType<typeof setTimeout>;
+  private readonly destroyRef = inject(DestroyRef);
 
   readonly id = input.required<string>();
 
@@ -178,12 +188,11 @@ export class ImportReportComponent implements OnInit, OnDestroy {
     return this.report()?.votes.slice(start, start + this.pageSize) ?? [];
   });
 
-  ngOnInit(): Promise<void> {
-    return this.poll();
-  }
-
-  ngOnDestroy(): void {
-    clearTimeout(this.timer);
+  // The ID is in the route, so a refresh resumes here (ING-02)
+  ngOnInit(): void {
+    poll(() => this.api.invoke(getImport, { id: this.id() }), (result) => this.isFinal(result))
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((result) => this.show(result));
   }
 
   protected selectOutcome(outcome: string): void {
@@ -197,18 +206,28 @@ export class ImportReportComponent implements OnInit, OnDestroy {
     void this.loadRows();
   }
 
-  // The ID is in the route, so a refresh resumes here (ING-02)
-  private async poll(): Promise<void> {
-    try {
-      const item = await this.api.invoke(getImport, { id: this.id() });
-      this.item.set(item);
+  private isFinal(result: PollResult<ImportDto>): boolean {
+    const status = result.value?.status;
+    return status === 'Completed' || status === 'Failed' || isPermanentFailure(result.error);
+  }
 
-      if (item.status === 'Completed') {
-        this.report.set(await this.api.invoke(getImportReport, { id: this.id() }));
-        await this.loadRows();
-      } else if (item.status !== 'Failed') {
-        this.timer = setTimeout(() => this.poll(), 1000);
-      }
+  private async show(result: PollResult<ImportDto>): Promise<void> {
+    if (!result.value) {
+      this.error.set(errorMessage(result.error));
+      return;
+    }
+
+    this.error.set(null);
+    this.item.set(result.value);
+    if (result.value.status === 'Completed') {
+      await this.loadReport();
+    }
+  }
+
+  private async loadReport(): Promise<void> {
+    try {
+      this.report.set(await this.api.invoke(getImportReport, { id: this.id() }));
+      await this.loadRows();
     } catch (error) {
       this.error.set(errorMessage(error));
     }

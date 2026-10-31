@@ -1,5 +1,6 @@
 import { DatePipe, DecimalPipe } from '@angular/common';
-import { Component, OnDestroy, OnInit, computed, inject, input, signal } from '@angular/core';
+import { Component, DestroyRef, OnInit, computed, inject, input, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -10,6 +11,7 @@ import { Api } from '../../core/api/api';
 import { getSnapshot, publishSnapshot } from '../../core/api/functions';
 import { SnapshotDetailDto } from '../../core/api/models';
 import { CurrentUserService } from '../../core/user/current-user.service';
+import { PollResult, isPermanentFailure, poll } from '../../shared/poll';
 import { Problem, applyServerErrors, errorMessage } from '../../shared/problem-details';
 import { StatusBadgeComponent } from '../../shared/status-badge.component';
 
@@ -58,7 +60,9 @@ import { StatusBadgeComponent } from '../../shared/status-badge.component';
       <h2>Rules</h2>
       <p>
         Score = 100 × (matched weights + {{ current.rules.abstentionFactor }} × abstention weights) ÷ (weights of Y, N and A ballots).
-        Absent isn't counted. A country needs at least {{ current.rules.minCountedVotes }} counted votes.
+        Absent isn't counted. A country needs at least {{ current.rules.minCountedVotes }} counted votes,
+        otherwise it shows as insufficient data with no rank. Ballots from countries that weren't members on
+        the vote's date are rejected at import, so they never count.
       </p>
       <p class="muted">
         {{ current.voteCount }} votes.
@@ -87,7 +91,7 @@ import { StatusBadgeComponent } from '../../shared/status-badge.component';
               <mat-error>{{ publish.controls.reason.getError('server') }}</mat-error>
             }
           </mat-form-field>
-          <button matButton="filled" type="submit">Publish</button>
+          <button matButton="filled" type="submit" [disabled]="publishing()">Publish</button>
         </form>
       }
 
@@ -124,10 +128,10 @@ import { StatusBadgeComponent } from '../../shared/status-badge.component';
   `,
   styles: `.reason { width: 26rem; }`,
 })
-export class SnapshotDetailComponent implements OnInit, OnDestroy {
+export class SnapshotDetailComponent implements OnInit {
   private readonly api = inject(Api);
+  private readonly destroyRef = inject(DestroyRef);
   protected readonly user = inject(CurrentUserService);
-  private timer?: ReturnType<typeof setTimeout>;
 
   readonly id = input.required<string>();
 
@@ -138,44 +142,57 @@ export class SnapshotDetailComponent implements OnInit, OnDestroy {
 
   protected readonly detail = signal<SnapshotDetailDto | null>(null);
   protected readonly error = signal<string | null>(null);
-  protected readonly running = computed(() => {
-    const status = this.detail()?.snapshot.status;
-    return status === 'Pending' || status === 'Running';
-  });
+  protected readonly publishing = signal(false);
+  protected readonly running = computed(() => this.isRunning(this.detail()));
 
-  ngOnInit(): Promise<void> {
-    return this.load();
-  }
-
-  ngOnDestroy(): void {
-    clearTimeout(this.timer);
+  ngOnInit(): void {
+    poll(() => this.loadDetail(), (result) => this.isFinal(result))
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((result) => {
+        if (result.value) {
+          this.detail.set(result.value);
+          this.error.set(null);
+        } else {
+          this.error.set(errorMessage(result.error));
+        }
+      });
   }
 
   protected async submitPublish(): Promise<void> {
+    // A second click can land before the button shows as disabled
+    if (this.publishing()) {
+      return;
+    }
+
     const { quarter, reason } = this.publish.getRawValue();
     this.error.set(null);
+    this.publishing.set(true);
     try {
       await this.api.invoke(publishSnapshot, {
         id: Number(this.id()),
         body: { quarter, reason: reason || null },
       });
-      await this.load();
+      this.detail.set(await this.loadDetail());
     } catch (error) {
       if (error instanceof Problem && error.status === 400 && applyServerErrors(this.publish, error).length === 0) {
         return;
       }
       this.error.set(errorMessage(error));
+    } finally {
+      this.publishing.set(false);
     }
   }
 
-  private async load(): Promise<void> {
-    try {
-      this.detail.set(await this.api.invoke(getSnapshot, { id: Number(this.id()) }));
-      if (this.running()) {
-        this.timer = setTimeout(() => this.load(), 1000);
-      }
-    } catch (error) {
-      this.error.set(errorMessage(error));
-    }
+  private loadDetail(): Promise<SnapshotDetailDto> {
+    return this.api.invoke(getSnapshot, { id: Number(this.id()) });
+  }
+
+  private isRunning(detail: SnapshotDetailDto | null | undefined): boolean {
+    const status = detail?.snapshot.status;
+    return status === 'Pending' || status === 'Running';
+  }
+
+  private isFinal(result: PollResult<SnapshotDetailDto>): boolean {
+    return result.value ? !this.isRunning(result.value) : isPermanentFailure(result.error);
   }
 }

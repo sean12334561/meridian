@@ -1,10 +1,12 @@
 import { DatePipe } from '@angular/common';
-import { Component, OnDestroy, OnInit, inject, signal } from '@angular/core';
+import { Component, DestroyRef, OnInit, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { Api } from '../../core/api/api';
 import { getImports, uploadImport } from '../../core/api/functions';
 import { ImportDto } from '../../core/api/models';
+import { isPermanentFailure, poll } from '../../shared/poll';
 import { errorMessage } from '../../shared/problem-details';
 import { StatusBadgeComponent } from '../../shared/status-badge.component';
 
@@ -16,7 +18,7 @@ const maxFileBytes = 200_000_000;
   template: `
     <h1>Imports</h1>
 
-    @if (error(); as message) {
+    @if (error() ?? refreshError(); as message) {
       <div class="banner error">{{ message }}</div>
     }
 
@@ -50,22 +52,29 @@ const maxFileBytes = 200_000_000;
     </table>
   `,
 })
-export class ImportListComponent implements OnInit, OnDestroy {
+export class ImportListComponent implements OnInit {
   private readonly api = inject(Api);
   private readonly router = inject(Router);
-  private timer?: ReturnType<typeof setInterval>;
+  private readonly destroyRef = inject(DestroyRef);
 
   protected readonly imports = signal<ImportDto[]>([]);
   protected readonly uploading = signal(false);
   protected readonly error = signal<string | null>(null);
 
-  async ngOnInit(): Promise<void> {
-    await this.refresh();
-    this.timer = setInterval(() => this.refresh(), 2000);
-  }
+  /** Kept apart from error: the next good refresh clears this, but mustn't clear an upload's message. */
+  protected readonly refreshError = signal<string | null>(null);
 
-  ngOnDestroy(): void {
-    clearInterval(this.timer);
+  ngOnInit(): void {
+    poll(() => this.api.invoke(getImports), (result) => isPermanentFailure(result.error), 2000)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((result) => {
+        if (result.value) {
+          this.imports.set(result.value);
+          this.refreshError.set(null);
+        } else {
+          this.refreshError.set(errorMessage(result.error));
+        }
+      });
   }
 
   protected async upload(input: HTMLInputElement): Promise<void> {
@@ -90,14 +99,6 @@ export class ImportListComponent implements OnInit, OnDestroy {
       this.error.set(errorMessage(error));
     } finally {
       this.uploading.set(false);
-    }
-  }
-
-  private async refresh(): Promise<void> {
-    try {
-      this.imports.set(await this.api.invoke(getImports));
-    } catch (error) {
-      this.error.set(errorMessage(error));
     }
   }
 }

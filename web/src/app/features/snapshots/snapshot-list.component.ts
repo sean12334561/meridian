@@ -1,16 +1,20 @@
 import { DatePipe } from '@angular/common';
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, DestroyRef, OnInit, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
+import { merge } from 'rxjs';
 import { Api } from '../../core/api/api';
 import { createSnapshot, getSnapshots } from '../../core/api/functions';
 import { SnapshotSummaryDto } from '../../core/api/models';
+import { PollResult, isPermanentFailure, poll } from '../../shared/poll';
 import { Problem, applyServerErrors, errorMessage } from '../../shared/problem-details';
 import { StatusBadgeComponent } from '../../shared/status-badge.component';
+import { parseVoteRefs } from './vote-refs';
 
 interface MissingPosition {
   id: number;
@@ -26,7 +30,7 @@ interface MissingPosition {
   template: `
     <h1>Snapshots</h1>
 
-    @if (error(); as message) {
+    @if (error() ?? refreshError(); as message) {
       <div class="banner error">{{ message }}</div>
     }
 
@@ -64,10 +68,10 @@ interface MissingPosition {
         </mat-form-field>
       </div>
       <mat-form-field class="wide">
-        <mat-label>Vote IDs, separated by commas</mat-label>
-        <input matInput formControlName="voteIds" />
-        @if (form.controls.voteIds.hasError('server')) {
-          <mat-error>{{ form.controls.voteIds.getError('server') }}</mat-error>
+        <mat-label>Vote references, separated by commas, e.g. MA/2024/117</mat-label>
+        <input matInput formControlName="voteRefs" />
+        @if (form.controls.voteRefs.hasError('server')) {
+          <mat-error>{{ form.controls.voteRefs.getError('server') }}</mat-error>
         }
       </mat-form-field>
 
@@ -114,13 +118,14 @@ interface MissingPosition {
 export class SnapshotListComponent implements OnInit {
   private readonly api = inject(Api);
   private readonly router = inject(Router);
+  private readonly destroyRef = inject(DestroyRef);
 
   protected readonly form = new FormGroup({
     name: new FormControl('', { nonNullable: true }),
     from: new FormControl('', { nonNullable: true }),
     to: new FormControl('', { nonNullable: true }),
     session: new FormControl<number | null>(null),
-    voteIds: new FormControl('', { nonNullable: true }),
+    voteRefs: new FormControl('', { nonNullable: true }),
     excludeMissingPositions: new FormControl(false, { nonNullable: true }),
     minCountedVotes: new FormControl<number | null>(1),
   });
@@ -129,18 +134,37 @@ export class SnapshotListComponent implements OnInit {
   protected readonly missing = signal<MissingPosition[]>([]);
   protected readonly creating = signal(false);
   protected readonly error = signal<string | null>(null);
+  protected readonly refreshError = signal<string | null>(null);
 
-  async ngOnInit(): Promise<void> {
-    try {
-      this.snapshots.set(await this.api.invoke(getSnapshots));
-    } catch (error) {
-      this.error.set(errorMessage(error));
-    }
+  constructor() {
+    const { from, to, session, voteRefs } = this.form.controls;
+
+    // An exclusion only covers the votes it listed, so a new selection has to ask again (POS-04)
+    merge(from.valueChanges, to.valueChanges, session.valueChanges, voteRefs.valueChanges)
+      .pipe(takeUntilDestroyed())
+      .subscribe(() => {
+        this.missing.set([]);
+        this.form.controls.excludeMissingPositions.setValue(false);
+      });
+  }
+
+  // Keeps the status column current while a calculation runs (SNP-02)
+  ngOnInit(): void {
+    poll(() => this.api.invoke(getSnapshots), (result) => this.isFinal(result), 2000)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((result) => {
+        if (result.value) {
+          this.snapshots.set(result.value);
+          this.refreshError.set(null);
+        } else {
+          this.refreshError.set(errorMessage(result.error));
+        }
+      });
   }
 
   protected async create(): Promise<void> {
     const value = this.form.getRawValue();
-    const voteIds = value.voteIds.split(',').map((id) => Number(id.trim())).filter((id) => id > 0);
+    const voteRefs = parseVoteRefs(value.voteRefs);
 
     this.error.set(null);
     this.creating.set(true);
@@ -151,7 +175,7 @@ export class SnapshotListComponent implements OnInit {
           from: value.from || null,
           to: value.to || null,
           session: value.session,
-          voteIds: voteIds.length > 0 ? voteIds : null,
+          voteRefs: voteRefs.length > 0 ? voteRefs : null,
           excludeMissingPositions: value.excludeMissingPositions,
           minCountedVotes: value.minCountedVotes ?? 0,
         },
@@ -162,6 +186,12 @@ export class SnapshotListComponent implements OnInit {
     } finally {
       this.creating.set(false);
     }
+  }
+
+  private isFinal(result: PollResult<SnapshotSummaryDto[]>): boolean {
+    return result.value
+      ? !result.value.some((snapshot) => snapshot.status === 'Pending' || snapshot.status === 'Running')
+      : isPermanentFailure(result.error);
   }
 
   private showFailure(error: unknown): void {

@@ -1,4 +1,5 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -97,8 +98,18 @@ import { StatusBadgeComponent } from '../../shared/status-badge.component';
     <mat-paginator [length]="votes()?.total ?? 0" [pageSize]="50" [pageIndex]="page() - 1" hidePageSize (page)="selectPage($event)" />
 
     @if (current.isAdmin()) {
-      <h2>Set position for all {{ votes()?.total ?? 0 }} matching votes</h2>
-      <form class="filters" [formGroup]="bulk" (ngSubmit)="applyBulk()">
+      <h2>Set position for up to {{ votes()?.total ?? 0 }} votes</h2>
+      <p class="muted">Applies to the votes listed above, as last searched. Votes that already have these values are skipped.</p>
+      @if (confirming()) {
+        <div class="banner info">
+          This replaces existing positions on up to {{ votes()?.total ?? 0 }} votes. It can only be undone vote by vote.
+          <div class="filters">
+            <button matButton="filled" type="button" [disabled]="applying()" (click)="applyBulk()">Replace positions</button>
+            <button matButton="outlined" type="button" (click)="confirming.set(false)">Cancel</button>
+          </div>
+        </div>
+      }
+      <form class="filters" [formGroup]="bulk" (ngSubmit)="requestBulk()">
         <mat-form-field class="date">
           <mat-label>Position</mat-label>
           <mat-select formControlName="desiredOutcome">
@@ -117,7 +128,7 @@ import { StatusBadgeComponent } from '../../shared/status-badge.component';
           }
         </mat-form-field>
         <mat-checkbox formControlName="onlyMissing">Only votes without a position</mat-checkbox>
-        <button matButton="filled" type="submit">Apply</button>
+        <button matButton="filled" type="submit" [disabled]="applying() || confirming()">Apply</button>
       </form>
     }
   `,
@@ -148,12 +159,23 @@ export class VoteListComponent implements OnInit {
   protected readonly page = signal(1);
   protected readonly error = signal<string | null>(null);
   protected readonly notice = signal<string | null>(null);
+  protected readonly applying = signal(false);
+  protected readonly confirming = signal(false);
+
+  /** What the table shows. Paging and bulk use this, never the form, which may hold unsearched edits. */
+  private searched = this.readFilters();
+
+  constructor() {
+    this.bulk.valueChanges.pipe(takeUntilDestroyed()).subscribe(() => this.confirming.set(false));
+  }
 
   ngOnInit(): Promise<void> {
     return this.load();
   }
 
   protected search(): void {
+    this.searched = this.readFilters();
+    this.confirming.set(false);
     this.page.set(1);
     void this.load();
   }
@@ -163,11 +185,26 @@ export class VoteListComponent implements OnInit {
     void this.load();
   }
 
+  // Filling gaps can't lose anything, so only replacing existing positions asks first
+  protected requestBulk(): void {
+    if (this.bulk.controls.onlyMissing.value) {
+      void this.applyBulk();
+    } else {
+      this.confirming.set(true);
+    }
+  }
+
   protected async applyBulk(): Promise<void> {
+    // A second click can land before the button shows as disabled
+    if (this.applying()) {
+      return;
+    }
+
     const { desiredOutcome, weight, onlyMissing } = this.bulk.getRawValue();
-    const filter = this.filter();
+    const filter = this.searched;
     this.notice.set(null);
     this.error.set(null);
+    this.applying.set(true);
     try {
       const result = await this.api.invoke(setPositionsBulk, {
         body: {
@@ -188,10 +225,13 @@ export class VoteListComponent implements OnInit {
         return;
       }
       this.error.set(errorMessage(error));
+    } finally {
+      this.applying.set(false);
+      this.confirming.set(false);
     }
   }
 
-  private filter(): GetVotes$Params {
+  private readFilters(): GetVotes$Params {
     const { q, session, from, to, hasPosition } = this.filters.getRawValue();
 
     return {
@@ -205,7 +245,7 @@ export class VoteListComponent implements OnInit {
 
   private async load(): Promise<void> {
     try {
-      this.votes.set(await this.api.invoke(getVotes, { ...this.filter(), Page: this.page(), PageSize: 50 }));
+      this.votes.set(await this.api.invoke(getVotes, { ...this.searched, Page: this.page(), PageSize: 50 }));
     } catch (error) {
       this.error.set(errorMessage(error));
     }

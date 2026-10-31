@@ -6,4 +6,5 @@ export const routes: Routes = [
   { path: 'review', loadChildren: () => import('./features/review/review.routes').then((m) => m.reviewRoutes) },
   { path: 'votes', loadChildren: () => import('./features/votes/votes.routes').then((m) => m.voteRoutes) },
   { path: 'snapshots', loadChildren: () => import('./features/snapshots/snapshots.routes').then((m) => m.snapshotRoutes) },
+  { path: '**', redirectTo: 'imports' },
 ];
