@@ -18,7 +18,7 @@ public static class GetVotes
     {
         public Validator()
         {
-            RuleFor(r => r.Page).GreaterThanOrEqualTo(1);
+            RuleFor(r => r.Page).InclusiveBetween(1, PageRequestValidator.MaxPage);
             RuleFor(r => r.PageSize).InclusiveBetween(1, PageRequestValidator.MaxPageSize);
         }
     }

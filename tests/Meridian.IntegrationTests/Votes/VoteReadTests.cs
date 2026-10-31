@@ -73,6 +73,15 @@ public class VoteReadTests(PostgresFixture postgres, AzuriteFixture azurite)
         Assert.Equal(("Omer", "\"Y\"", "\"A\"", "votes.csv"), (timeline[0].ActorName, timeline[0].OldValue, timeline[0].NewValue, timeline[0].FileName));
     }
 
+    [Theory]
+    [InlineData(1_000_000, HttpStatusCode.OK)]
+    [InlineData(1_000_001, HttpStatusCode.BadRequest)]
+    [InlineData(int.MaxValue, HttpStatusCode.BadRequest)]
+    public async Task Pages_stop_at_a_limit_that_cannot_overflow(int page, HttpStatusCode expected)
+    {
+        Assert.Equal(expected, (await Get($"/api/votes?page={page}&pageSize=100")).StatusCode);
+    }
+
     [Fact]
     public async Task An_unknown_vote_gets_a_404()
     {
