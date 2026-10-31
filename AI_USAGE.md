@@ -29,7 +29,7 @@ How AI tools were used on this project, what was checked by hand, and where the 
 | 10. Imports endpoints | Added upload, list and status endpoints, with the size limit read from configuration, and tests against real PostgreSQL and Azurite. A test on real Kestrel showed that an oversized upload reset the connection before the client saw the 413, which the in-memory test server had hidden; fixed and covered | TODO |
 | 11. Parsing | Added the import job handler, row reader and validator, binary `COPY` and progress, with tests and a timed run of the real files. A test showed one stray quote made CsvHelper merge later rows and lose them, so the reader now treats each line as one row. Reading the real output showed normalizations recorded on rejected rows; fixed and covered | TODO |
 | 12. In-file checks | Added duplicate and contradiction checks in SQL, with tests and a timed run of the real files. The LLD's order could hide differing details, so they are checked first. A test timed out because the planner had no statistics on freshly loaded rows; fixed with `ANALYZE` and a longer timeout | TODO |
-| 13. Applying | Added `ApprovedDataClassifier`: batches of 500 votes under the lock create votes, classify rows, insert ballots and open conflicts, with the section 7.2 scenario as tests. Done unattended; the choices are in `AUTONOMOUS_DECISIONS.md` | TODO |
+| 13. Applying | Added `ApprovedDataClassifier`: batches of 500 votes under the lock create votes, classify rows, insert ballots and open conflicts, with the section 7.2 scenario as tests. Done unattended | TODO |
 | 14. Report and rows | Added `ImportReportWriter`, report and rows endpoints, paging helpers and `ApiTestBase`, with a timed run of the real files. Done unattended | TODO |
 | 15. Conflicts | Added conflict reads and `DecideConflict` with the conditional update, supersede and `DecisionNotApplied`, with tests for races, previously-decided cases and details. Done unattended | TODO |
 | 16. Vote reads and timeline | Added the vote list, detail and timeline, with a shared `VoteFilter`. Done unattended | TODO |
@@ -45,6 +45,12 @@ How AI tools were used on this project, what was checked by hand, and where the 
 | 26. Snapshot screens | Added the create form with the missing-positions flow, the list, the detail with rules, ranking and publishing, and the country breakdown. Done unattended | TODO |
 | 27. Web image and Compose | Added the nginx image and the `web` service, then ran the whole system in a real browser with three users. Done unattended | TODO |
 | 28. README and final checks | Filled in the measured load time and known limitations and ran the final checks. Done unattended. The Azure run is still to do | TODO |
+| 29. Correlation ID in telemetry | A review found the ID lived only in a log scope that wasn't exported. Turned on scope export and tagged the request activity, with tests. Not yet seen in a real Application Insights resource | TODO |
+| 30. Import rows index | A review overturned the decision to accept 4.6 s batches. Added `(import_id, vote_ref)`; the historic load fell to about 57 s and a decision's wait to 2.2 s at most | TODO |
+| 31. Paging limit | A review reproduced a 500 from an overflowing page number. Added a limit to both paging validators, with tests | TODO |
+| 32. Backend review fixes | Fixed the review findings: report guards, the identical-file note, details conflicts on contradicted votes, skipping unchanged votes in bulk, withdrawals on the timeline, listing votes by reference, the quarter pattern, and the tests that proved too little | TODO |
+| 33. Screen review fixes | Bulk and paging now use the searched filter, replacing positions asks first, polling recovers and stops cleanly, and the exclusion tick resets with the selection. Checked in a real browser, which also caught a double-click on Publish that disabling the button didn't stop | TODO |
+| 34. Run configuration | Restart policy, nginx re-resolving the API, the dev proxy port and a working `npm test`. Running the README's development steps found a wrong seed path in `.env.example`; fixed | TODO |
 
 ## Where the AI was wrong or needed correcting
 

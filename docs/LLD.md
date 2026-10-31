@@ -194,7 +194,7 @@ jobs.Enqueue("import", new { importId = import.Id, correlationId });      // sam
 await db.SaveChangesAsync(ct);                                             // → 202 { importId }
 ```
 
-Rejected before any work (400): no file, extension not `.csv`, empty file. An earlier import with the same SHA-256 is noted in the report as "identical to import #N" but still processed.
+Rejected before any work (400): no file, extension not `.csv`, empty file. An earlier import with the same SHA-256 is noted in the report by its file name and upload time, because import IDs are GUIDs, but still processed.
 
 ### Phase 1 — Parsing (C#)
 
@@ -331,7 +331,7 @@ Creating a snapshot validates the selection synchronously and returns 202; `Snap
 
 ### CreateSnapshot (request side)
 
-- Request: `Name`, optional `From`/`To`, `Session`, `VoteIds`, `ExcludeMissingPositions` (default false), `MinCountedVotes` (default 1).
+- Request: `Name`, optional `From`/`To`, `Session`, `VoteIds`, `VoteRefs` (Assembly references, the form the UI sends), `ExcludeMissingPositions` (default false), `MinCountedVotes` (default 1).
 - At least one selector is required; a selection that matches zero votes → 400.
 - Votes in the selection without a position → 400 with `extensions.missingPositions` listing them, unless `ExcludeMissingPositions` is true; then they're stored in `rules.excludedVotes`.
 - Saves the snapshot (status Pending, `rules` = `{ abstentionFactor: 0.5, minCountedVotes, excludedVotes }`, the resolved vote ID list in `filter`) and enqueues a `snapshot` job in the same save.
@@ -513,7 +513,7 @@ web/src/app/
 - **Interceptors:** add `X-User-Id` from the switcher, add a new `X-Correlation-ID` per request, and turn error responses into a typed `Problem`.
 - **Field errors (POS-02):** `applyServerErrors(form, problem)` maps `problem.errors.weight` to `form.controls.weight.setErrors({ server: … })`, so the message shows under the field.
 - **409 (CON-05):** the conflict detail reads `problem.extensions.current`, shows "already decided by … at …" in a banner and re-renders the card with the current state; it doesn't show a generic error toast.
-- **Progress (ING-02, SNP-02):** `timer(0, 1000).pipe(switchMap(() => api.getImport(id)), takeWhile(i => !isFinal(i.status), true))`. The import ID is in the route (`/imports/:id`), so a refresh resumes polling.
+- **Progress (ING-02, SNP-02):** `shared/poll.ts`: `timer(0, 1000).pipe(exhaustMap(() => load()), takeWhile(r => !isFinal(r), true))`, stopped by `takeUntilDestroyed`. `exhaustMap` so a slow call is not cancelled, and a failed call is reported without ending the polling unless it is a 4xx. The import ID is in the route (`/imports/:id`), so a refresh resumes polling.
 - **Role-aware UI:** admin-only controls are hidden for analysts as a convenience; the API still enforces the rule.
 - **UI kit:** Angular Material for tables, forms, dialogs and the progress bar; standalone components with signals, no NgRx.
 
