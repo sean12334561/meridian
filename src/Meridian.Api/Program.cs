@@ -4,6 +4,7 @@ using FluentValidation;
 using Meridian.Api.Features.Conflicts;
 using Meridian.Api.Features.Imports;
 using Meridian.Api.Features.Users;
+using Meridian.Api.Features.Votes;
 using Meridian.Api.Shared;
 using Meridian.Api.Shared.Auth;
 using Meridian.Api.Shared.Jobs;
@@ -18,6 +19,7 @@ builder.Services
     .AddUsersFeature()
     .AddImportsFeature()
     .AddConflictsFeature()
+    .AddVotesFeature()
     .AddValidatorsFromAssemblyContaining<Program>();
 builder.Services
     .AddAuthentication(HeaderAuthenticationHandler.SchemeName)

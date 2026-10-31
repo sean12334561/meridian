@@ -32,6 +32,7 @@ How AI tools were used on this project, what was checked by hand, and where the 
 | 13. Applying | Added `ApprovedDataClassifier`: batches of 500 votes under the lock create votes, classify rows, insert ballots and open conflicts, with the section 7.2 scenario as tests. Done unattended; the choices are in `AUTONOMOUS_DECISIONS.md` | TODO |
 | 14. Report and rows | Added `ImportReportWriter`, report and rows endpoints, paging helpers and `ApiTestBase`, with a timed run of the real files. Done unattended | TODO |
 | 15. Conflicts | Added conflict reads and `DecideConflict` with the conditional update, supersede and `DecisionNotApplied`, with tests for races, previously-decided cases and details. Done unattended | TODO |
+| 16. Vote reads and timeline | Added the vote list, detail and timeline, with a shared `VoteFilter`. Done unattended | TODO |
 
 ## Where the AI was wrong or needed correcting
 
