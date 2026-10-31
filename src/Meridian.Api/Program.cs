@@ -4,6 +4,7 @@ using FluentValidation;
 using Meridian.Api.Features.Users;
 using Meridian.Api.Shared;
 using Meridian.Api.Shared.Auth;
+using Meridian.Api.Shared.Jobs;
 using Meridian.Api.Shared.Observability;
 using Meridian.Api.Shared.Seeding;
 using Microsoft.AspNetCore.Authentication;
@@ -24,6 +25,8 @@ builder.Services.AddControllers().AddJsonOptions(o => ConfigureJson(o.JsonSerial
 builder.Services.ConfigureHttpJsonOptions(o => ConfigureJson(o.SerializerOptions));    // read by OpenAPI
 builder.Services.AddOpenApi();
 builder.Services.AddHealthChecks();
+if (builder.Configuration.GetValue<bool>("Worker:Enabled"))
+    builder.Services.AddHostedService<JobWorker>();
 
 WebApplication app = builder.Build();
 
