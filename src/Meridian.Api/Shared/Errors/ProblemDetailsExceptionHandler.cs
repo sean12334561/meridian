@@ -20,6 +20,12 @@ public class ProblemDetailsExceptionHandler(IProblemDetailsService problemDetail
                 Detail = notFound.Message,
             },
             ConcurrencyConflictException conflict => ToProblem(conflict),
+            FileTooLargeException tooLarge => new ProblemDetails
+            {
+                Status = StatusCodes.Status413PayloadTooLarge,
+                Title = "File too large",
+                Detail = tooLarge.Message,
+            },
             _ => null,
         };
 

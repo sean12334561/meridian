@@ -182,7 +182,7 @@ Authorization, errors, tracing and secrets are handled once in the pipeline, not
 | Errors | One format: ProblemDetails (RFC 9457) from a global exception handler; `ValidationProblemDetails` with field-keyed `errors`; 409 for concurrency with the current state in extensions |
 | Correlation ID | Angular interceptor sends `X-Correlation-ID`; middleware accepts or creates it, adds it to the log scope and the response header, and stores it on imports and jobs so worker logs continue the same trace. Exported to Application Insights via OpenTelemetry |
 | Secrets | No keys or connection strings in code or `appsettings.json`. `.env` (git-ignored, `.env.example` committed); in production, Key Vault through a managed identity |
-| Upload limits | Raised body and multipart limits on the upload endpoint only (\~200 MB); streamed, never buffered |
+| Upload limits | Raised body and multipart limits on the upload endpoint only (\~200 MB, `Upload__MaxBytes`); held in a temporary file on disk, never in memory, then streamed to Blob Storage |
 
 ## Environments
 
