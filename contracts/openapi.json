@@ -413,10 +413,398 @@
           }
         }
       }
+    },
+    "/api/conflicts": {
+      "get": {
+        "tags": [
+          "Conflicts"
+        ],
+        "operationId": "GetConflicts",
+        "parameters": [
+          {
+            "name": "Status",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/ConflictStatus"
+            }
+          },
+          {
+            "name": "VoteId",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "Page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "PageSize",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": { }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": { }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagedResultOfConflictDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              },
+              "application/json": { }
+            }
+          }
+        }
+      }
+    },
+    "/api/conflicts/{id}": {
+      "get": {
+        "tags": [
+          "Conflicts"
+        ],
+        "operationId": "GetConflict",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": { }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": { }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConflictDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": { }
+            }
+          }
+        }
+      }
+    },
+    "/api/conflicts/{id}/decision": {
+      "post": {
+        "tags": [
+          "Conflicts"
+        ],
+        "operationId": "DecideConflict",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Request"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Request"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/Request"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": { }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": { }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConflictDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              },
+              "application/json": { }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": { }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": { }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
     "schemas": {
+      "ConflictDto": {
+        "required": [
+          "id",
+          "voteId",
+          "voteRef",
+          "voteTitle",
+          "target",
+          "status",
+          "approvedValue",
+          "approvedSource",
+          "proposedValue",
+          "proposedSource",
+          "createdAt",
+          "decidedByName",
+          "decidedAt",
+          "note"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "voteId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "voteRef": {
+            "type": "string"
+          },
+          "voteTitle": {
+            "type": "string"
+          },
+          "target": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ConflictStatus"
+          },
+          "approvedValue": {
+            "type": "string"
+          },
+          "approvedSource": {
+            "$ref": "#/components/schemas/ConflictSourceDto"
+          },
+          "proposedValue": {
+            "type": "string"
+          },
+          "proposedSource": {
+            "$ref": "#/components/schemas/ConflictSourceDto"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "decidedByName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "decidedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "note": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "ConflictSourceDto": {
+        "required": [
+          "importId",
+          "fileName",
+          "uploadedByName",
+          "uploadedAt",
+          "line",
+          "publishedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "importId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "fileName": {
+            "type": "string"
+          },
+          "uploadedByName": {
+            "type": "string"
+          },
+          "uploadedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "line": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "publishedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "ConflictStatus": {
+        "enum": [
+          "Pending",
+          "Accepted",
+          "Rejected",
+          "Superseded"
+        ]
+      },
+      "Decision": {
+        "enum": [
+          "Accept",
+          "Reject",
+          null
+        ]
+      },
       "HttpValidationProblemDetails": {
         "type": "object",
         "properties": {
@@ -709,6 +1097,35 @@
           "Failed"
         ]
       },
+      "PagedResultOfConflictDto": {
+        "required": [
+          "items",
+          "page",
+          "pageSize",
+          "total"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ConflictDto"
+            }
+          },
+          "page": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pageSize": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "total": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
       "PagedResultOfImportRowDto": {
         "required": [
           "items",
@@ -767,6 +1184,27 @@
             ]
           },
           "instance": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "Request": {
+        "type": "object",
+        "properties": {
+          "decision": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/Decision"
+              }
+            ]
+          },
+          "note": {
             "type": [
               "null",
               "string"
@@ -879,6 +1317,9 @@
     },
     {
       "name": "Imports"
+    },
+    {
+      "name": "Conflicts"
     }
   ]
 }

@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using FluentValidation;
+using Meridian.Api.Features.Conflicts;
 using Meridian.Api.Features.Imports;
 using Meridian.Api.Features.Users;
 using Meridian.Api.Shared;
@@ -16,6 +17,7 @@ builder.Services
     .AddShared(builder.Configuration)
     .AddUsersFeature()
     .AddImportsFeature()
+    .AddConflictsFeature()
     .AddValidatorsFromAssemblyContaining<Program>();
 builder.Services
     .AddAuthentication(HeaderAuthenticationHandler.SchemeName)

@@ -17,6 +17,7 @@ public enum HistoryType
     ConflictOpened,
     ConflictAccepted,
     ConflictRejected,
+    ConflictSuperseded,
     ValueChanged,
     DetailsChanged,
     PositionChanged,

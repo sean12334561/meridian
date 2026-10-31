@@ -102,6 +102,19 @@ public class HistoryWriter(AppDbContext db)
             """, ct);
     }
 
+    public async Task ConflictsSupersededAsync(long[] conflictIds, int actorId, CancellationToken ct)
+    {
+        RequireTransaction();
+        await db.Database.ExecuteSqlInterpolatedAsync($"""
+            INSERT INTO vote_history (vote_id, type, target, old_value, new_value, actor_id, import_id, conflict_id)
+            SELECT c.vote_id, {nameof(HistoryType.ConflictSuperseded)}, c.target,
+                   to_jsonb(c.approved_value), to_jsonb(c.proposed_value),
+                   {actorId}, c.proposed_source_import_id, c.id
+            FROM conflicts c
+            WHERE c.id = ANY({conflictIds})
+            """, ct);
+    }
+
     private void AddConflictEntry(HistoryType type, Conflict conflict, int actorId)
     {
         db.VoteHistory.Add(new VoteHistoryEntry
