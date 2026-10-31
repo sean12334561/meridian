@@ -467,6 +467,79 @@
         }
       }
     },
+    "/api/snapshots": {
+      "post": {
+        "tags": [
+          "Snapshots"
+        ],
+        "operationId": "CreateSnapshot",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Request"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Request"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/Request"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": { }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": { }
+            }
+          },
+          "202": {
+            "description": "Accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SnapshotCreatedDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              },
+              "application/json": { }
+            }
+          }
+        }
+      }
+    },
     "/api/imports": {
       "post": {
         "tags": [
@@ -1706,6 +1779,18 @@
           null
         ]
       },
+      "SnapshotCreatedDto": {
+        "required": [
+          "snapshotId"
+        ],
+        "type": "object",
+        "properties": {
+          "snapshotId": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
       "TimelineEntryDto": {
         "required": [
           "type",
@@ -1934,6 +2019,9 @@
     },
     {
       "name": "Users"
+    },
+    {
+      "name": "Snapshots"
     },
     {
       "name": "Imports"

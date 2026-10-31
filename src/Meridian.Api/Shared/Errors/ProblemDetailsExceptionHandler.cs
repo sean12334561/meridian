@@ -1,5 +1,6 @@
 using System.Text.Json;
 using FluentValidation;
+using Meridian.Api.Features.Snapshots;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 
@@ -20,6 +21,7 @@ public class ProblemDetailsExceptionHandler(IProblemDetailsService problemDetail
                 Detail = notFound.Message,
             },
             ConcurrencyConflictException conflict => ToProblem(conflict),
+            MissingPositionsException missing => ToProblem(missing),
             FileTooLargeException tooLarge => new ProblemDetails
             {
                 Status = StatusCodes.Status413PayloadTooLarge,
@@ -50,6 +52,20 @@ public class ProblemDetailsExceptionHandler(IProblemDetailsService problemDetail
             .ToDictionary(g => g.Key, g => g.Select(e => e.ErrorMessage).ToArray());
 
         return new HttpValidationProblemDetails(errors) { Status = StatusCodes.Status400BadRequest };
+    }
+
+    private static ProblemDetails ToProblem(MissingPositionsException exception)
+    {
+        ProblemDetails problem = new()
+        {
+            Status = StatusCodes.Status400BadRequest,
+            Type = "/problems/missing-positions",
+            Title = "Votes without a position",
+            Detail = exception.Message,
+        };
+        problem.Extensions["missingPositions"] = exception.Missing;
+
+        return problem;
     }
 
     private static ProblemDetails ToProblem(ConcurrencyConflictException exception)

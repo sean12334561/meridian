@@ -34,6 +34,7 @@ How AI tools were used on this project, what was checked by hand, and where the 
 | 15. Conflicts | Added conflict reads and `DecideConflict` with the conditional update, supersede and `DecisionNotApplied`, with tests for races, previously-decided cases and details. Done unattended | TODO |
 | 16. Vote reads and timeline | Added the vote list, detail and timeline, with a shared `VoteFilter`. Done unattended | TODO |
 | 17. Positions | Added `SetPosition` and `SetPositionsBulk`, admin only, with field errors and one history row per vote. Done unattended | TODO |
+| 18. Snapshot calculation | Added `CreateSnapshot` and `SnapshotJobHandler` with the set-based scoring SQL, with tests for the assignment example, abstention, ties, the minimum and immutability. Done unattended | TODO |
 
 ## Where the AI was wrong or needed correcting
 

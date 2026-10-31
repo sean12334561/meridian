@@ -3,6 +3,7 @@ using System.Text.Json.Serialization;
 using FluentValidation;
 using Meridian.Api.Features.Conflicts;
 using Meridian.Api.Features.Imports;
+using Meridian.Api.Features.Snapshots;
 using Meridian.Api.Features.Users;
 using Meridian.Api.Features.Votes;
 using Meridian.Api.Shared;
@@ -20,6 +21,7 @@ builder.Services
     .AddImportsFeature()
     .AddConflictsFeature()
     .AddVotesFeature()
+    .AddSnapshotsFeature()
     .AddValidatorsFromAssemblyContaining<Program>();
 builder.Services
     .AddAuthentication(HeaderAuthenticationHandler.SchemeName)
