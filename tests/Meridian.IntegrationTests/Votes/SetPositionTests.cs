@@ -75,6 +75,25 @@ public class SetPositionTests(PostgresFixture postgres, AzuriteFixture azurite)
     }
 
     [Fact]
+    public async Task Overlapping_changes_each_record_the_value_they_really_replaced()
+    {
+        long id = await CreateVote("MA/5008/001");
+        object[] changes = [.. from outcome in new[] { "Y", "N" }
+                               from weight in Enumerable.Range(1, 5)
+                               select new { desiredOutcome = outcome, weight }];
+
+        await Task.WhenAll(changes.Select(change => Put($"/api/votes/{id}/position", change)));
+
+        await using AppDbContext db = _postgres.CreateDbContext();
+        List<VoteHistoryEntry> history = await db.VoteHistory
+            .Where(h => h.VoteId == id && h.Type == HistoryType.PositionChanged)
+            .OrderBy(h => h.Id)
+            .ToListAsync();
+        Assert.Equal(changes.Length, history.Count);
+        Assert.All(history.Skip(1).Zip(history), pair => Assert.Equal(pair.Second.NewValue, pair.First.OldValue));
+    }
+
+    [Fact]
     public async Task An_unknown_vote_gets_a_404()
     {
         Assert.Equal(HttpStatusCode.NotFound, (await Put("/api/votes/999999/position", new { desiredOutcome = "Y", weight = 4 })).StatusCode);

@@ -30,14 +30,15 @@ public class ImportCheckingTests(PostgresFixture postgres, AzuriteFixture azurit
     [Fact]
     public async Task Rows_that_differ_only_in_name_or_publication_count_as_duplicates()
     {
-        // Same vote, country and ballot: one value either way, and ING-11 says a name is not a difference
+        // Same vote, country and ballot: one value either way, and ING-11 says a name is not a difference.
+        // The newest publication stays, as it decides whether a closed decision can reopen
         Import import = await RunFile(
             "MA/2024/001,79,2024-02-06,Title,TUR,Turkey,Y,2024-04-02T09:00:00Z",
             "MA/2024/001,79,2024-02-06,Title,TUR,Türkiye,Y,2024-04-02T09:00:00Z",
             "MA/2024/001,79,2024-02-06,Title,TUR,Turkey,Y,2024-04-20T09:00:00Z");
 
         Assert.Equal(
-            [(2, null, null), (3, RowOutcome.Duplicate, "Same as line 2"), (4, RowOutcome.Duplicate, "Same as line 2")],
+            [(2, RowOutcome.Duplicate, "Same as line 4"), (3, RowOutcome.Duplicate, "Same as line 4"), (4, null, null)],
             await Outcomes(import));
     }
 
@@ -135,7 +136,9 @@ public class ImportCheckingTests(PostgresFixture postgres, AzuriteFixture azurit
                 Session = 79,
                 VoteDate = new DateOnly(2024, 2, 6),
                 Title = "Title",
-                DetailsSourceImportId = earlier.Id,
+                TitleSourceImportId = earlier.Id,
+                VoteDateSourceImportId = earlier.Id,
+                SessionSourceImportId = earlier.Id,
             });
             await db.SaveChangesAsync();
         }

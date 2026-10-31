@@ -21,7 +21,8 @@ public class SnapshotReadTests(PostgresFixture postgres, AzuriteFixture azurite)
         Assert.Equal((0.5m, 1), (snapshot.Rules.AbstentionFactor, snapshot.Rules.MinCountedVotes));
         Assert.Equal(
             [("BRA", "Brazil", (int?)1), ("IND", "India", 2), ("FRA", "France", null)],
-            snapshot.Ranking.Select(r => (r.CountryCode, r.CountryName, r.Rank)));
+            snapshot.Ranking.Where(r => r.CountryCode is "BRA" or "IND" or "FRA").Select(r => (r.CountryCode, r.CountryName, r.Rank)));
+        Assert.Equal(["BRA", "IND"], snapshot.Ranking.Take(2).Select(r => r.CountryCode));
     }
 
     [Fact]
@@ -60,6 +61,6 @@ public class SnapshotReadTests(PostgresFixture postgres, AzuriteFixture azurite)
         long id = await Compute(vote);
 
         Assert.Equal(HttpStatusCode.NotFound, (await Get("/api/snapshots/999999")).StatusCode);
-        Assert.Equal(HttpStatusCode.NotFound, (await Get($"/api/snapshots/{id}/countries/FRA")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await Get($"/api/snapshots/{id}/countries/NZL")).StatusCode);    // not a member in 2024
     }
 }

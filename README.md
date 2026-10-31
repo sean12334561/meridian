@@ -97,4 +97,6 @@ Before the `(import_id, vote_ref)` index on `import_rows`, the same load took be
 - A conflict decision waits for the import batch holding the same lock. Eight decisions made while the historic file was applying took 0.8 to 2.2 seconds each.
 - Automated Angular tests cover only the shared helpers. The screens have no tests in the repo; the backend has unit and integration suites.
 - Accepting a change to a vote's date doesn't re-check that its countries were members on the new date.
+- Each CSV row must be on one line. A quoted field with a line break is rejected, so a stray quote can't swallow the rows after it.
+- A snapshot's numbers never change, but its breakdown shows a vote's current title, not the title at snapshot time.
 - Application Insights export has not been checked against a real resource. It is off unless `APPLICATIONINSIGHTS_CONNECTION_STRING` is set.

@@ -70,7 +70,7 @@ app.Run();
 
 static void ConfigureJson(JsonSerializerOptions options)
 {
-    options.Converters.Add(new JsonStringEnumConverter());
+    options.Converters.Add(new JsonStringEnumConverter(allowIntegerValues: false));
     options.NumberHandling = JsonNumberHandling.Strict;
 }
 

@@ -119,6 +119,8 @@ Only seven things are shared across slices; everything else lives in its feature
 
 **Advisory lock constant:** `Locks.ApprovedData = 1001`, taken with `SELECT pg_advisory_xact_lock(1001)` by import apply batches and conflict decisions. It is released automatically at commit or rollback.
 
+`Locks.Positions = 1002` is taken by `SetPosition` and `SetPositionsBulk`, so each history row holds the value it really replaced (HIS-03).
+
 ## Persistence
 
 Entities map one-to-one to the 13 HLD tables, with snake\_case names and enums stored as text so the database stays readable and the CHECK constraints are explicit.
@@ -131,7 +133,7 @@ Entities map one-to-one to the 13 HLD tables, with snake\_case names and enums s
 | `ImportStatus` / `ImportPhase` | Pending, Running, Completed, Failed / Queued, Parsing, Checking, Applying, Done |
 | `RowOutcome` | New, Unchanged, Duplicate, Invalid, Contradiction, Conflict, PreviouslyDecided |
 | `ConflictStatus` | Pending, Accepted, Rejected, Superseded |
-| `HistoryType` | VoteCreated, BallotsImported, ConflictOpened, ConflictAccepted, ConflictRejected, ValueChanged, DetailsChanged, PositionChanged, DecisionNotApplied |
+| `HistoryType` | VoteCreated, BallotsImported, ConflictOpened, ConflictRepublished, ConflictAccepted, ConflictRejected, ValueChanged, DetailsChanged, PositionChanged, DecisionNotApplied |
 | `SnapshotStatus` / `JobStatus` | Pending, Running, Completed, Failed / Pending, Running, Succeeded, Failed |
 
 Ballots stay a `char` (`Y`, `N`, `A`, `X`) with a CHECK constraint, matching the file format.
@@ -169,7 +171,7 @@ b.HasIndex(p => p.Quarter).IsUnique().HasFilter("withdrawn_at IS NULL");
 **Traceability columns** (added after tracing the assignment's history questions)
 
 - `conflicts.approved_source_import_id` + `approved_source_line`: copied at detection, so both sides of a conflict keep their origin after the approved value is replaced (CON-02).
-- `votes.details_source_import_id`: origin of the current title, date and session (HIS-02).
+- `votes.title_source_import_id`, `vote_date_source_import_id`, `session_source_import_id`: origin of each current value (HIS-02). Accepting one field changes only that field's source.
 - `import_rows.conflict_id`: the conflict a row opened or matched.
 - `vote_history.target` (country code, `title`, `vote_date`, `session` or `position`) and `old_value` / `new_value` as jsonb, so ballots, details and position + weight share one shape.
 - `snapshot_contributions.source_import_id`: the file each counted ballot came from at snapshot time.
@@ -211,7 +213,7 @@ Rejected before any work (400): no file, extension not `.csv`, empty file. An ea
 | `session` is an integer | "Session 'abc' is not a number" | — |
 | `vote_date` is a real `yyyy-MM-dd` date | "Date '21/02/2024' is not yyyy-mm-dd" | — |
 | `country_code` exists in `member_states` | "Unknown country code 'FRN'" | Uppercase (`deu` → `DEU`) |
-| Member on `vote_date` (both ends inclusive) | "NZL was not a member on 2024-02-06" | — |
+| Member on `vote_date` (both ends inclusive). For a vote that already exists with another date, a new ballot is also checked against the approved date during apply | "NZL was not a member on 2024-02-06" | — |
 | `ballot` in Y, N, A, X | "Invalid ballot 'Yes'" | — |
 | `published_at` is an ISO timestamp | "Invalid published\_at" | — |
 
@@ -220,8 +222,8 @@ Rejected before any work (400): no file, extension not `.csv`, empty file. An ea
 Only this import's rows with no outcome yet are considered, so the phase can run alongside other imports.
 
 ```sql
--- Exact duplicates: keep the first line, mark the rest
-UPDATE import_rows r SET outcome = 'Duplicate', reason = 'Same as line ' || d.first_line
+-- Exact duplicates: keep the newest published_at (then the first line), mark the rest
+UPDATE import_rows r SET outcome = 'Duplicate', reason = 'Same as line ' || d.kept_line
 FROM (SELECT line_no, MIN(line_no) OVER (PARTITION BY vote_ref, country_code, ballot) AS first_line
       FROM import_rows WHERE import_id = @import AND outcome IS NULL) d
 WHERE r.import_id = @import AND r.line_no = d.line_no AND d.line_no <> d.first_line;
@@ -248,7 +250,7 @@ Each batch is one transaction that starts with `pg_advisory_xact_lock(1001)`, so
    - different and previously decided → **PreviouslyDecided** (rule below);
    - otherwise → **Conflict**.
 4. **Insert** New rows into `country_votes` with `source_import_id` and `source_line`; write one `BallotsImported` history row per vote.
-5. **Open conflicts** with `INSERT … ON CONFLICT (vote_id, target, proposed_value) WHERE status = 'Pending' DO NOTHING`; every Conflict row gets conflict\_id (new or existing), and rows whose conflict already existed get the reason "already pending". Write `ConflictOpened` history for new ones.
+5. **Open conflicts** with `INSERT … ON CONFLICT (vote_id, target, proposed_value) WHERE status = 'Pending' DO UPDATE SET published_at` when the file's publication is newer, recorded as `ConflictRepublished`, so a re-upload after a rejection stays closed; every Conflict row gets conflict\_id (new or existing), and rows whose conflict already existed get the reason "already pending". Write `ConflictOpened` history for new ones.
 6. Update `processed_rows` and commit, releasing the lock.
 
 ```sql
@@ -371,6 +373,7 @@ FROM (SELECT country_code,
 
 - Then the handler records `pendingConflictsAtCreation` on the snapshot and sets status Completed. A failure rolls back both inserts; a retry starts clean.
 - Ties share a rank because of `RANK()`; scores keep 4 decimals and display 1.
+- Scores also get a row for every country that was a member on a selected vote's date, so a member with no ballots shows as insufficient data with an empty breakdown.
 - After completion no code path updates `snapshot_contributions` or `snapshot_scores` (SNP-04).
 
 ### Reads

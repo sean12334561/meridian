@@ -6,6 +6,7 @@ using Meridian.Api.Shared.Data;
 using Meridian.Api.Shared.Data.Entities;
 using Meridian.IntegrationTests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace Meridian.IntegrationTests.Snapshots;
 
@@ -22,7 +23,7 @@ public class SnapshotCalculationTests(PostgresFixture postgres, AzuriteFixture a
 
         long id = await Compute(a, b);
 
-        SnapshotScore score = Assert.Single(await Scores(id));
+        SnapshotScore score = await Score(id, "BRA");
         Assert.Equal((66.6667m, 2, 6m, 4m, (int?)1), (score.Score!.Value, score.CountedVotes, score.CountedWeight, score.EarnedWeight, score.Rank));
     }
 
@@ -35,7 +36,7 @@ public class SnapshotCalculationTests(PostgresFixture postgres, AzuriteFixture a
 
         long id = await Compute(a, b, c);
 
-        SnapshotScore score = Assert.Single(await Scores(id));
+        SnapshotScore score = await Score(id, "FRA");
         Assert.Equal((60m, 2, 5m, 3m), (score.Score!.Value, score.CountedVotes, score.CountedWeight, score.EarnedWeight));
         Assert.Equal(
             [("A", true, 2m, "Abstained (half)"), ("Y", true, 1m, "Matched"), ("X", false, 0m, "Absent")],
@@ -53,7 +54,8 @@ public class SnapshotCalculationTests(PostgresFixture postgres, AzuriteFixture a
         long id = await CreateSnapshot(new { name = "Minimum", voteIds = new[] { a, b, c, d }, minCountedVotes = 2 });
         await RunSnapshotJob(id);
 
-        List<SnapshotScore> scores = await Scores(id);
+        string[] voted = ["BRA", "DEU", "FRA", "IND", "ITA", "JPN"];
+        List<SnapshotScore> scores = (await Scores(id)).Where(s => voted.Contains(s.CountryCode)).ToList();
         Assert.Equal(
             [("BRA", (int?)1), ("DEU", null), ("FRA", 4), ("IND", 1), ("ITA", null), ("JPN", 3)],
             scores.Select(s => (s.CountryCode, s.Rank)));
@@ -83,7 +85,7 @@ public class SnapshotCalculationTests(PostgresFixture postgres, AzuriteFixture a
         Assert.Equivalent(contributions, await Contributions(id));
 
         long newer = await Compute(vote);
-        Assert.Equal((50m, 0.5m), ((await Scores(newer))[0].Score!.Value, (await Contributions(newer))[0].Points));
+        Assert.Equal((50m, 0.5m), ((await Score(newer, "BRA")).Score!.Value, (await Contributions(newer))[0].Points));
     }
 
     [Fact]
@@ -210,6 +212,49 @@ public class SnapshotCalculationTests(PostgresFixture postgres, AzuriteFixture a
         HttpResponseMessage response = await Post("/api/snapshots", JsonSerializer.Deserialize<JsonElement>(body));
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task A_member_with_no_ballots_shows_as_insufficient_data()
+    {
+        long vote = await LoadVote("MA/6011/001", "Y", 1, ("BRA", "Y"));
+
+        long id = await Compute(vote);
+
+        SnapshotScore france = await Score(id, "FRA");
+        Assert.Equal((0, 0m, null, null), (france.CountedVotes, france.CountedWeight, france.Score, france.Rank));
+        Assert.DoesNotContain(await Scores(id), s => s.CountryCode == "NZL");
+        CountryBreakdownDto breakdown = await GetOk<CountryBreakdownDto>($"/api/snapshots/{id}/countries/FRA");
+        Assert.Empty(breakdown.Contributions);
+    }
+
+    [Fact]
+    public async Task A_stalled_worker_leaves_a_snapshot_that_completed_meanwhile_alone()
+    {
+        long vote = await LoadVote("MA/6012/001", "Y", 1, ("BRA", "Y"));
+        long id = await CreateSnapshot(new { name = "Stalled", voteIds = new[] { vote } });
+
+        // The other worker's commit is held open, so this one reads Pending and then waits on the row
+        await using AppDbContext other = _postgres.CreateDbContext();
+        await using IDbContextTransaction transaction = await other.Database.BeginTransactionAsync();
+        await other.Snapshots.Where(s => s.Id == id).ExecuteUpdateAsync(s => s.SetProperty(x => x.Status, SnapshotStatus.Completed));
+
+        Task stalled = RunSnapshotJob(id);
+        await Wait.Until(async () =>
+        {
+            await using AppDbContext db = _postgres.CreateDbContext();
+            return await db.Database.SqlQuery<int>($"""
+                SELECT COUNT(*)::int AS "Value" FROM pg_stat_activity
+                WHERE wait_event_type = 'Lock' AND query LIKE 'UPDATE snapshots%'
+                """).SingleAsync() > 0;
+        });
+
+        await transaction.CommitAsync();
+        await stalled;
+
+        await using AppDbContext verify = _postgres.CreateDbContext();
+        Assert.Equal(SnapshotStatus.Completed, (await verify.Snapshots.SingleAsync(s => s.Id == id)).Status);
+        Assert.Empty(await Scores(id));
     }
 
     [Fact]

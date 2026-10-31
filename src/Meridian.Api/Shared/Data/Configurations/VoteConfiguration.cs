@@ -10,7 +10,9 @@ public class VoteConfiguration : IEntityTypeConfiguration<Vote>
     {
         b.HasIndex(v => v.VoteRef).IsUnique();
         b.Property(v => v.Position).HasMaxLength(1);
-        b.HasOne<Import>().WithMany().HasForeignKey(v => v.DetailsSourceImportId);
+        b.HasOne<Import>().WithMany().HasForeignKey(v => v.TitleSourceImportId);
+        b.HasOne<Import>().WithMany().HasForeignKey(v => v.VoteDateSourceImportId);
+        b.HasOne<Import>().WithMany().HasForeignKey(v => v.SessionSourceImportId);
         b.ToTable(t =>
         {
             t.HasCheckConstraint("ck_weight", "weight IS NULL OR weight BETWEEN 1 AND 5");

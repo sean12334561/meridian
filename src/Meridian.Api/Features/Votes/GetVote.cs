@@ -39,7 +39,9 @@ public static class GetVote
             return new VoteDetailDto
             {
                 Vote = VoteDto.From(vote, openConflicts),
-                DetailsSourceImportId = vote.DetailsSourceImportId,
+                TitleSourceImportId = vote.TitleSourceImportId,
+                VoteDateSourceImportId = vote.VoteDateSourceImportId,
+                SessionSourceImportId = vote.SessionSourceImportId,
                 CountryVotes = countryVotes,
             };
         }
@@ -49,7 +51,9 @@ public static class GetVote
 public class VoteDetailDto
 {
     public required VoteDto Vote { get; init; }
-    public required Guid DetailsSourceImportId { get; init; }
+    public required Guid TitleSourceImportId { get; init; }
+    public required Guid VoteDateSourceImportId { get; init; }
+    public required Guid SessionSourceImportId { get; init; }
     public required List<CountryVoteDto> CountryVotes { get; init; }
 }
 

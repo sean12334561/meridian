@@ -75,6 +75,11 @@ public abstract class SnapshotTestBase(PostgresFixture postgres, AzuriteFixture 
         return await db.SnapshotScores.Where(s => s.SnapshotId == id).OrderBy(s => s.CountryCode).ToListAsync();
     }
 
+    protected async Task<SnapshotScore> Score(long id, string country)
+    {
+        return (await Scores(id)).Single(s => s.CountryCode == country);
+    }
+
     protected async Task<List<SnapshotContribution>> Contributions(long id)
     {
         await using AppDbContext db = _postgres.CreateDbContext();

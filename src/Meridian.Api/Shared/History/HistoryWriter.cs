@@ -102,6 +102,20 @@ public class HistoryWriter(AppDbContext db)
             """, ct);
     }
 
+    /// <summary>A newer file proposed the same value, so the pending conflict took its published_at.</summary>
+    public async Task ConflictsRepublishedAsync(long[] conflictIds, Guid importId, int actorId, CancellationToken ct)
+    {
+        RequireTransaction();
+        await db.Database.ExecuteSqlInterpolatedAsync($"""
+            INSERT INTO vote_history (vote_id, type, target, new_value, actor_id, import_id, conflict_id)
+            SELECT c.vote_id, {nameof(HistoryType.ConflictRepublished)}, c.target,
+                   jsonb_build_object('value', c.proposed_value, 'publishedAt', c.published_at),
+                   {actorId}, {importId}, c.id
+            FROM conflicts c
+            WHERE c.id = ANY({conflictIds})
+            """, ct);
+    }
+
     public async Task ConflictsSupersededAsync(long[] conflictIds, int actorId, CancellationToken ct)
     {
         RequireTransaction();

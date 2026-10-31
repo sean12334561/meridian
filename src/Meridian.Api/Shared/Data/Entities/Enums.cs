@@ -15,6 +15,7 @@ public enum HistoryType
     VoteCreated,
     BallotsImported,
     ConflictOpened,
+    ConflictRepublished,
     ConflictAccepted,
     ConflictRejected,
     ConflictSuperseded,

@@ -5,6 +5,7 @@ using Meridian.Api.Shared.Data.Entities;
 using Meridian.Api.Shared.Errors;
 using Meridian.Api.Shared.History;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace Meridian.Api.Features.Votes;
 
@@ -33,6 +34,9 @@ public static class SetPosition
         {
             await validator.ValidateAndThrowAsync(request, ct);
 
+            await using IDbContextTransaction transaction = await db.Database.BeginTransactionAsync(ct);
+            await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock({Locks.Positions})", ct);
+
             Vote vote = await db.Votes.SingleOrDefaultAsync(v => v.Id == voteId, ct)
                         ?? throw new NotFoundException("Vote", voteId);
 
@@ -44,6 +48,8 @@ public static class SetPosition
                 history.PositionChanged(vote.Id, old, (request.DesiredOutcome, request.Weight), user.Id);
                 await db.SaveChangesAsync(ct);
             }
+
+            await transaction.CommitAsync(ct);
 
             int openConflicts = await db.Conflicts.CountAsync(c => c.VoteId == voteId && c.Status == ConflictStatus.Pending, ct);
 

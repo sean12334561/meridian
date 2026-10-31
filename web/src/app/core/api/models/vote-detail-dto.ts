@@ -5,6 +5,8 @@ import { CountryVoteDto } from '../models/country-vote-dto';
 import { VoteDto } from '../models/vote-dto';
 export interface VoteDetailDto {
   countryVotes: Array<CountryVoteDto>;
-  detailsSourceImportId: string;
+  sessionSourceImportId: string;
+  titleSourceImportId: string;
   vote: VoteDto;
+  voteDateSourceImportId: string;
 }

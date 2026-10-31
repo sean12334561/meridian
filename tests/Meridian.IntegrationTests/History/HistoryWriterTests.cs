@@ -292,7 +292,9 @@ public class HistoryWriterTests(PostgresFixture postgres) : IClassFixture<Postgr
             Session = 79,
             VoteDate = new DateOnly(2024, 2, 6),
             Title = "Title",
-            DetailsSourceImportId = import.Id,
+            TitleSourceImportId = import.Id,
+            VoteDateSourceImportId = import.Id,
+            SessionSourceImportId = import.Id,
         };
         await using AppDbContext db = postgres.CreateDbContext();
         db.Votes.Add(vote);

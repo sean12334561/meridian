@@ -282,7 +282,9 @@ public class SchemaTests(PostgresFixture postgres) : IClassFixture<PostgresFixtu
         Session = 79,
         VoteDate = new DateOnly(2024, 2, 6),
         Title = "Test vote",
-        DetailsSourceImportId = importId,
+        TitleSourceImportId = importId,
+        VoteDateSourceImportId = importId,
+        SessionSourceImportId = importId,
     };
 
     private static CountryVote NewBallot(Vote vote, Import import, char ballot) => new()

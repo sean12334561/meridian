@@ -23,7 +23,7 @@ public static class DecideConflict
     {
         public Validator()
         {
-            RuleFor(r => r.Decision).NotNull().WithMessage("Choose Accept or Reject.");
+            RuleFor(r => r.Decision).NotNull().IsInEnum().WithMessage("Choose Accept or Reject.");
             RuleFor(r => r.Note).MaximumLength(1000);
         }
     }
@@ -92,17 +92,17 @@ public static class DecideConflict
                 case "title":
                     await db.Votes.Where(v => v.Id == conflict.VoteId).ExecuteUpdateAsync(s => s
                         .SetProperty(v => v.Title, conflict.ProposedValue)
-                        .SetProperty(v => v.DetailsSourceImportId, conflict.ProposedSourceImportId), ct);
+                        .SetProperty(v => v.TitleSourceImportId, conflict.ProposedSourceImportId), ct);
                     break;
                 case "vote_date":
                     await db.Votes.Where(v => v.Id == conflict.VoteId).ExecuteUpdateAsync(s => s
                         .SetProperty(v => v.VoteDate, DateOnly.Parse(conflict.ProposedValue))
-                        .SetProperty(v => v.DetailsSourceImportId, conflict.ProposedSourceImportId), ct);
+                        .SetProperty(v => v.VoteDateSourceImportId, conflict.ProposedSourceImportId), ct);
                     break;
                 case "session":
                     await db.Votes.Where(v => v.Id == conflict.VoteId).ExecuteUpdateAsync(s => s
                         .SetProperty(v => v.Session, int.Parse(conflict.ProposedValue))
-                        .SetProperty(v => v.DetailsSourceImportId, conflict.ProposedSourceImportId), ct);
+                        .SetProperty(v => v.SessionSourceImportId, conflict.ProposedSourceImportId), ct);
                     break;
                 default:
                     await db.CountryVotes

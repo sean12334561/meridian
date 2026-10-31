@@ -52,15 +52,17 @@ public class InFileChecks(IDbContextFactory<AppDbContext> dbFactory)
             """, ct);
     }
 
+    // The freshest of the repeats stays: published_at decides whether a closed decision is reopened
     private static async Task MarkDuplicatesAsync(AppDbContext db, Guid importId, CancellationToken ct)
     {
         await db.Database.ExecuteSqlInterpolatedAsync($"""
             UPDATE import_rows r
-            SET outcome = 'Duplicate', reason = 'Same as line ' || d.first_line
-            FROM (SELECT line_no, MIN(line_no) OVER (PARTITION BY vote_ref, country_code, ballot) AS first_line
+            SET outcome = 'Duplicate', reason = 'Same as line ' || d.kept_line
+            FROM (SELECT line_no, FIRST_VALUE(line_no) OVER (PARTITION BY vote_ref, country_code, ballot
+                                                         ORDER BY published_at DESC, line_no) AS kept_line
                   FROM import_rows
                   WHERE import_id = {importId} AND outcome IS NULL) d
-            WHERE r.import_id = {importId} AND r.line_no = d.line_no AND d.line_no <> d.first_line
+            WHERE r.import_id = {importId} AND r.line_no = d.line_no AND d.line_no <> d.kept_line
             """, ct);
     }
 

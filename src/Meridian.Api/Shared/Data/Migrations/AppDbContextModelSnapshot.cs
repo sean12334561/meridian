@@ -611,10 +611,6 @@ namespace Meridian.Api.Shared.Data.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
 
-                    b.Property<Guid>("DetailsSourceImportId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("details_source_import_id");
-
                     b.Property<string>("Position")
                         .HasMaxLength(1)
                         .HasColumnType("character varying(1)")
@@ -624,14 +620,26 @@ namespace Meridian.Api.Shared.Data.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("session");
 
+                    b.Property<Guid>("SessionSourceImportId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("session_source_import_id");
+
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasColumnType("text")
                         .HasColumnName("title");
 
+                    b.Property<Guid>("TitleSourceImportId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("title_source_import_id");
+
                     b.Property<DateOnly>("VoteDate")
                         .HasColumnType("date")
                         .HasColumnName("vote_date");
+
+                    b.Property<Guid>("VoteDateSourceImportId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("vote_date_source_import_id");
 
                     b.Property<string>("VoteRef")
                         .IsRequired()
@@ -858,10 +866,24 @@ namespace Meridian.Api.Shared.Data.Migrations
                 {
                     b.HasOne("Meridian.Api.Shared.Data.Entities.Import", null)
                         .WithMany()
-                        .HasForeignKey("DetailsSourceImportId")
+                        .HasForeignKey("SessionSourceImportId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
-                        .HasConstraintName("fk_votes_imports_details_source_import_id");
+                        .HasConstraintName("fk_votes_imports_session_source_import_id");
+
+                    b.HasOne("Meridian.Api.Shared.Data.Entities.Import", null)
+                        .WithMany()
+                        .HasForeignKey("TitleSourceImportId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_votes_imports_title_source_import_id");
+
+                    b.HasOne("Meridian.Api.Shared.Data.Entities.Import", null)
+                        .WithMany()
+                        .HasForeignKey("VoteDateSourceImportId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_votes_imports_vote_date_source_import_id");
                 });
 
             modelBuilder.Entity("Meridian.Api.Shared.Data.Entities.VoteHistoryEntry", b =>

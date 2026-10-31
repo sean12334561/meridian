@@ -4,6 +4,7 @@ using Meridian.Api.Shared.Data;
 using Meridian.Api.Shared.Data.Entities;
 using Meridian.Api.Shared.History;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace Meridian.Api.Features.Votes;
 
@@ -36,6 +37,9 @@ public static class SetPositionsBulk
         {
             await validator.ValidateAndThrowAsync(request, ct);
 
+            await using IDbContextTransaction transaction = await db.Database.BeginTransactionAsync(ct);
+            await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock({Locks.Positions})", ct);
+
             // Votes that already have these values change nothing, so they get no history row
             IQueryable<Vote> matching = request.Apply(db.Votes)
                 .Where(v => v.Position != request.DesiredOutcome || v.Weight != request.Weight);
@@ -53,6 +57,7 @@ public static class SetPositionsBulk
             }
 
             await db.SaveChangesAsync(ct);
+            await transaction.CommitAsync(ct);
 
             return new BulkPositionResultDto { Updated = votes.Count };
         }

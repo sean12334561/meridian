@@ -17,6 +17,7 @@ public class ConflictTests(PostgresFixture postgres, AzuriteFixture azurite)
 {
     private const string Published = "2024-04-02T09:00:00Z";
     private const string Later = "2024-06-02T09:00:00Z";
+    private const string Newest = "2024-08-02T09:00:00Z";
 
     private readonly PostgresFixture _postgres = postgres;
 
@@ -86,9 +87,14 @@ public class ConflictTests(PostgresFixture postgres, AzuriteFixture azurite)
 
         await using AppDbContext db = _postgres.CreateDbContext();
         Vote vote = await db.Votes.SingleAsync(v => v.Id == conflict.VoteId);
-        Assert.Equal(
-            (title, session, DateOnly.Parse(date), revised.Id),
-            (vote.Title, vote.Session, vote.VoteDate, vote.DetailsSourceImportId));
+        Assert.Equal((title, session, DateOnly.Parse(date)), (vote.Title, vote.Session, vote.VoteDate));
+        Guid changedSource = target switch
+        {
+            "title" => vote.TitleSourceImportId,
+            "session" => vote.SessionSourceImportId,
+            _ => vote.VoteDateSourceImportId,
+        };
+        Assert.Equal(revised.Id, changedSource);
         Assert.True(await db.VoteHistory.AnyAsync(h => h.ConflictId == conflict.Id && h.Type == HistoryType.DetailsChanged));
     }
 
@@ -218,6 +224,96 @@ public class ConflictTests(PostgresFixture postgres, AzuriteFixture azurite)
     {
         Assert.Equal(HttpStatusCode.NotFound, (await Get("/api/conflicts/999999")).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await Decide(999999, Decision.Accept)).StatusCode);
+    }
+
+    [Fact]
+    public async Task Accepting_one_detail_leaves_the_source_of_the_others()
+    {
+        const string voteRef = "MA/3012/001";
+        Import original = await RunFile(Row(voteRef, "BRA", "Y"));
+        await RunFile(Row(voteRef, "BRA", "Y", "Revised", date: "2024-02-07"));
+        await using AppDbContext db = _postgres.CreateDbContext();
+        long voteId = await db.Votes.Where(v => v.VoteRef == voteRef).Select(v => v.Id).SingleAsync();
+        await Decide(await PendingId(db, voteId, "title"), Decision.Accept);
+        await Decide(await PendingId(db, voteId, "vote_date"), Decision.Reject);
+
+        await RunFile(Row(voteRef, "BRA", "Y", "Revised", date: "2024-02-08", published: Later));
+
+        Conflict next = await db.Conflicts.SingleAsync(c => c.VoteId == voteId && c.Target == "vote_date" && c.Status == ConflictStatus.Pending);
+        Assert.Equal(original.Id, next.ApprovedSourceImportId);
+    }
+
+    [Fact]
+    public async Task A_new_ballot_is_checked_against_the_approved_date_not_the_proposed_one()
+    {
+        const string voteRef = "MA/3013/001";
+        await RunFile(Row(voteRef, "BRA", "Y"));
+
+        // NZL left in 2021. The file's date would make it a member, but nobody has accepted that date
+        Import revised = await RunFile(Row(voteRef, "BRA", "Y", date: "2020-02-06"), Row(voteRef, "NZL", "Y", date: "2020-02-06"));
+
+        ImportRow rejected = (await Rows(revised)).Single(r => r.CountryCode == "NZL");
+        Assert.Equal((RowOutcome.Invalid, "NZL was not a member on 2024-02-06"), (rejected.Outcome, rejected.Reason));
+        Import finished = await Reload(revised);
+        Assert.Equal(finished.TotalRows, finished.ProcessedRows);
+        Assert.Equal("vote_date", (await SingleConflict(voteRef)).Target);
+        await using AppDbContext db = _postgres.CreateDbContext();
+        Assert.False(await db.CountryVotes.AnyAsync(cv => cv.CountryCode == "NZL" && cv.SourceImportId == revised.Id));
+    }
+
+    [Fact]
+    public async Task A_repeated_row_keeps_its_newest_publication()
+    {
+        ConflictDto conflict = await OpenBallotConflict("MA/3014/001");
+        await Decide(conflict.Id, Decision.Reject);
+
+        Import repeated = await RunFile(
+            Row("MA/3014/001", "BRA", "A", published: Later),
+            Row("MA/3014/001", "BRA", "A", published: Newest));
+
+        Assert.Equal(
+            [(RowOutcome.Duplicate, "Same as line 3"), (RowOutcome.Conflict, null)],
+            (await Rows(repeated)).OrderBy(r => r.LineNo).Select(r => (r.Outcome!.Value, r.Reason)));
+    }
+
+    [Fact]
+    public async Task A_rejected_value_stays_closed_when_a_file_that_backed_it_returns()
+    {
+        const string voteRef = "MA/3015/001";
+        ConflictDto conflict = await OpenBallotConflict(voteRef);
+        Import newer = await RunFile(Row(voteRef, "BRA", "A", published: Newest));
+
+        await using AppDbContext db = _postgres.CreateDbContext();
+        VoteHistoryEntry republished = await db.VoteHistory.SingleAsync(h => h.ConflictId == conflict.Id && h.Type == HistoryType.ConflictRepublished);
+        Assert.Equal(newer.Id, republished.ImportId);
+        await Decide(conflict.Id, Decision.Reject);
+
+        Import again = await RunFile(Row(voteRef, "BRA", "A", published: Newest));
+
+        Assert.Equal(RowOutcome.PreviouslyDecided, Assert.Single(await Rows(again)).Outcome);
+        Assert.Equal(1, await db.Conflicts.CountAsync(c => c.VoteId == conflict.VoteId));
+    }
+
+    [Theory]
+    [InlineData("""{"decision":27}""")]
+    [InlineData("""{"decision":0}""")]
+    [InlineData("""{"decision":"27"}""")]
+    public async Task A_decision_sent_as_a_number_gets_a_400(string body)
+    {
+        ConflictDto conflict = await OpenBallotConflict($"MA/3016/{Math.Abs(body.GetHashCode()) % 1000:D3}");
+
+        HttpResponseMessage response = await Post($"/api/conflicts/{conflict.Id}/decision", JsonSerializer.Deserialize<JsonElement>(body));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(ConflictStatus.Pending, (await SingleConflict(conflict.VoteRef)).Status);
+    }
+
+    private static Task<long> PendingId(AppDbContext db, long voteId, string target)
+    {
+        return db.Conflicts
+            .Where(c => c.VoteId == voteId && c.Target == target && c.Status == ConflictStatus.Pending)
+            .Select(c => c.Id)
+            .SingleAsync();
     }
 
     private async Task<ConflictDto> OpenBallotConflict(string voteRef)

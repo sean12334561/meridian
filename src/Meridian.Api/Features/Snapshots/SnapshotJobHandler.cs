@@ -23,14 +23,15 @@ public class SnapshotJobHandler(IDbContextFactory<AppDbContext> dbFactory) : IJo
         db.Database.SetCommandTimeout(StatementTimeout);
 
         Snapshot snapshot = await db.Snapshots.AsNoTracking().SingleAsync(s => s.Id == snapshotId, ct);
-        if (snapshot.Status == SnapshotStatus.Completed)
+
+        // In the update, not a separate check: a stalled worker can commit between the two
+        int started = await db.Snapshots
+            .Where(s => s.Id == snapshotId && s.Status != SnapshotStatus.Completed)
+            .ExecuteUpdateAsync(s => s.SetProperty(x => x.Status, SnapshotStatus.Running), ct);
+        if (started == 0)
         {
             return;
         }
-
-        await db.Snapshots
-            .Where(s => s.Id == snapshotId)
-            .ExecuteUpdateAsync(s => s.SetProperty(x => x.Status, SnapshotStatus.Running), ct);
 
         long[] voteIds = SnapshotJson.Read<SnapshotFilter>(snapshot.Filter).VoteIds;
         SnapshotRules rules = SnapshotJson.Read<SnapshotRules>(snapshot.Rules);
@@ -38,7 +39,7 @@ public class SnapshotJobHandler(IDbContextFactory<AppDbContext> dbFactory) : IJo
         await using IDbContextTransaction transaction = await db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, ct);
 
         await InsertContributionsAsync(db, snapshotId, voteIds, rules.AbstentionFactor, ct);
-        await InsertScoresAsync(db, snapshotId, rules.MinCountedVotes, ct);
+        await InsertScoresAsync(db, snapshotId, voteIds, rules.MinCountedVotes, ct);
 
         int pendingConflicts = await db.Conflicts
             .Where(c => voteIds.Contains(c.VoteId) && c.Status == ConflictStatus.Pending)
@@ -91,9 +92,10 @@ public class SnapshotJobHandler(IDbContextFactory<AppDbContext> dbFactory) : IJo
             """, ct);
     }
 
-    // COALESCE: a country that was absent from every vote has no counted weight, and no score. Ranking
-    // compares the unrounded scores
-    private static Task InsertScoresAsync(AppDbContext db, long snapshotId, int minCountedVotes, CancellationToken ct)
+    // Every country that was a member on a selected vote's date gets a row, ballots or not, so it shows
+    // as insufficient data. COALESCE: such a country, or one absent from every vote, has no counted
+    // weight and no score. Ranking compares the unrounded scores
+    private static Task InsertScoresAsync(AppDbContext db, long snapshotId, long[] voteIds, int minCountedVotes, CancellationToken ct)
     {
         return db.Database.ExecuteSqlInterpolatedAsync($"""
             INSERT INTO snapshot_scores
@@ -102,13 +104,20 @@ public class SnapshotJobHandler(IDbContextFactory<AppDbContext> dbFactory) : IJo
                    CASE WHEN n >= {minCountedVotes} THEN ROUND(100 * e / w, 4) END,
                    CASE WHEN n >= {minCountedVotes} THEN RANK() OVER (ORDER BY
                         CASE WHEN n >= {minCountedVotes} THEN e / w END DESC NULLS LAST) END
-            FROM (SELECT country_code,
-                         COUNT(*) FILTER (WHERE counted)    AS n,
-                         SUM(weight) FILTER (WHERE counted) AS w,
-                         SUM(points)                        AS e
-                  FROM snapshot_contributions
-                  WHERE snapshot_id = {snapshotId}
-                  GROUP BY country_code) s
+            FROM (SELECT c.country_code, COALESCE(t.n, 0) AS n, t.w, t.e
+                  FROM (SELECT m.country_code
+                        FROM member_states m
+                        JOIN votes v ON m.member_from <= v.vote_date AND (m.member_to IS NULL OR v.vote_date <= m.member_to)
+                        WHERE v.id = ANY({voteIds}) AND v.position IS NOT NULL
+                        UNION
+                        SELECT country_code FROM snapshot_contributions WHERE snapshot_id = {snapshotId}) c
+                  LEFT JOIN (SELECT country_code,
+                                    COUNT(*) FILTER (WHERE counted)    AS n,
+                                    SUM(weight) FILTER (WHERE counted) AS w,
+                                    SUM(points)                        AS e
+                             FROM snapshot_contributions
+                             WHERE snapshot_id = {snapshotId}
+                             GROUP BY country_code) t ON t.country_code = c.country_code) s
             """, ct);
     }
 }

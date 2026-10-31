@@ -2662,7 +2662,9 @@
       "VoteDetailDto": {
         "required": [
           "vote",
-          "detailsSourceImportId",
+          "titleSourceImportId",
+          "voteDateSourceImportId",
+          "sessionSourceImportId",
           "countryVotes"
         ],
         "type": "object",
@@ -2670,7 +2672,15 @@
           "vote": {
             "$ref": "#/components/schemas/VoteDto"
           },
-          "detailsSourceImportId": {
+          "titleSourceImportId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "voteDateSourceImportId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sessionSourceImportId": {
             "type": "string",
             "format": "uuid"
           },

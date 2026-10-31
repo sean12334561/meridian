@@ -60,21 +60,24 @@ public class ApprovedDataClassifier(IDbContextFactory<AppDbContext> dbFactory)
         long[] createdVoteIds = await CreateMissingVotesAsync(db, import.Id, voteRefs, ct);
         await history.VotesCreatedAsync(createdVoteIds, import.Id, import.UploadedBy, ct);
 
-        long[] detailConflictIds = await OpenDetailsConflictsAsync(db, import.Id, voteRefs, ct);
+        List<ConflictWrite> detailConflicts = await OpenDetailsConflictsAsync(db, import.Id, voteRefs, ct);
 
+        int rejectedRows = await RejectNonMembersAsync(db, import.Id, voteRefs, ct);
         int classifiedRows = await ClassifyRowsAsync(db, import.Id, voteRefs, ct);
 
         await InsertNewBallotsAsync(db, import.Id, voteRefs, ct);
         long[] voteIds = await db.Votes.Where(v => voteRefs.Contains(v.VoteRef)).Select(v => v.Id).ToArrayAsync(ct);
         await history.BallotsImportedAsync(voteIds, import.Id, import.UploadedBy, ct);
 
-        long[] ballotConflictIds = await OpenBallotConflictsAsync(db, import.Id, voteRefs, ct);
-        await history.ConflictsOpenedAsync([.. detailConflictIds, .. ballotConflictIds], import.UploadedBy, ct);
+        List<ConflictWrite> ballotConflicts = await OpenBallotConflictsAsync(db, import.Id, voteRefs, ct);
+        List<ConflictWrite> conflicts = [.. detailConflicts, .. ballotConflicts];
+        await history.ConflictsOpenedAsync(conflicts.Where(c => c.Opened).Select(c => c.Id).ToArray(), import.UploadedBy, ct);
+        await history.ConflictsRepublishedAsync(conflicts.Where(c => !c.Opened).Select(c => c.Id).ToArray(), import.Id, import.UploadedBy, ct);
         await LinkRowsToConflictsAsync(db, import.Id, voteRefs, ct);
 
         await db.Imports
             .Where(i => i.Id == import.Id)
-            .ExecuteUpdateAsync(s => s.SetProperty(i => i.ProcessedRows, i => i.ProcessedRows + classifiedRows), ct);
+            .ExecuteUpdateAsync(s => s.SetProperty(i => i.ProcessedRows, i => i.ProcessedRows + rejectedRows + classifiedRows), ct);
 
         await transaction.CommitAsync(ct);
     }
@@ -83,8 +86,10 @@ public class ApprovedDataClassifier(IDbContextFactory<AppDbContext> dbFactory)
     private static Task<long[]> CreateMissingVotesAsync(AppDbContext db, Guid importId, string[] voteRefs, CancellationToken ct)
     {
         return db.Database.SqlQuery<long>($"""
-            INSERT INTO votes (vote_ref, session, vote_date, title, details_source_import_id)
-            SELECT DISTINCT ON (r.vote_ref) r.vote_ref, r.session, r.vote_date, r.title, r.import_id
+            INSERT INTO votes (vote_ref, session, vote_date, title,
+                               session_source_import_id, vote_date_source_import_id, title_source_import_id)
+            SELECT DISTINCT ON (r.vote_ref) r.vote_ref, r.session, r.vote_date, r.title,
+                   r.import_id, r.import_id, r.import_id
             FROM import_rows r
             WHERE r.import_id = {importId} AND r.outcome IS NULL AND r.vote_ref = ANY({voteRefs})
               AND NOT EXISTS (SELECT 1 FROM votes v WHERE v.vote_ref = r.vote_ref)
@@ -94,12 +99,13 @@ public class ApprovedDataClassifier(IDbContextFactory<AppDbContext> dbFactory)
     }
 
     // One conflict per field that differs. A vote whose details differ inside the file opens none: the
-    // file doesn't say which details it means. All its rows count, as Duplicate rows may hide a difference
-    private static Task<long[]> OpenDetailsConflictsAsync(AppDbContext db, Guid importId, string[] voteRefs, CancellationToken ct)
+    // file doesn't say which details it means. All its rows count, as Duplicate rows may hide a difference.
+    // The freshest row speaks for the file, so a repeat with a newer published_at isn't lost
+    private static Task<List<ConflictWrite>> OpenDetailsConflictsAsync(AppDbContext db, Guid importId, string[] voteRefs, CancellationToken ct)
     {
-        return db.Database.SqlQuery<long>($"""
+        return db.Database.SqlQuery<ConflictWrite>($"""
             WITH agreed AS (
-                SELECT r.vote_ref, MIN(r.line_no) AS line_no
+                SELECT r.vote_ref, (ARRAY_AGG(r.line_no ORDER BY r.published_at DESC, r.line_no))[1] AS line_no
                 FROM import_rows r
                 WHERE r.import_id = {importId} AND r.vote_ref = ANY({voteRefs}) AND r.outcome IS DISTINCT FROM 'Invalid'
                 GROUP BY r.vote_ref
@@ -107,24 +113,44 @@ public class ApprovedDataClassifier(IDbContextFactory<AppDbContext> dbFactory)
             INSERT INTO conflicts (vote_id, target, approved_value, approved_source_import_id,
                                    proposed_value, proposed_source_import_id, proposed_source_line,
                                    published_at, status)
-            SELECT v.id, f.target, f.approved, v.details_source_import_id,
+            SELECT v.id, f.target, f.approved, f.source,
                    f.proposed, r.import_id, r.line_no, r.published_at, 'Pending'
             FROM agreed a
             JOIN import_rows r ON r.import_id = {importId} AND r.line_no = a.line_no
             JOIN votes v ON v.vote_ref = r.vote_ref
             CROSS JOIN LATERAL (VALUES
-                ('title', v.title, r.title),
-                ('vote_date', v.vote_date::text, r.vote_date::text),
-                ('session', v.session::text, r.session::text)) f (target, approved, proposed)
+                ('title', v.title, r.title, v.title_source_import_id),
+                ('vote_date', v.vote_date::text, r.vote_date::text, v.vote_date_source_import_id),
+                ('session', v.session::text, r.session::text, v.session_source_import_id)) f (target, approved, proposed, source)
             WHERE f.approved <> f.proposed
               AND NOT EXISTS (SELECT 1 FROM conflicts c
                               WHERE c.vote_id = v.id AND c.target = f.target
                                 AND c.published_at >= r.published_at
                                 AND (   (c.status IN ('Rejected', 'Superseded') AND c.proposed_value = f.proposed)
                                      OR (c.status = 'Accepted' AND c.approved_value = f.proposed)))
-            ON CONFLICT (vote_id, target, proposed_value) WHERE status = 'Pending' DO NOTHING
-            RETURNING id AS "Value"
-            """).ToArrayAsync(ct);
+            ON CONFLICT (vote_id, target, proposed_value) WHERE status = 'Pending' DO UPDATE
+                SET published_at = EXCLUDED.published_at
+                WHERE conflicts.published_at < EXCLUDED.published_at
+            RETURNING id, (xmax = 0) AS opened
+            """).ToListAsync(ct);
+    }
+
+    // A file can propose a date that makes a country look like a member, but the vote's date is the
+    // approved one until someone accepts the change. A ballot already stored is not a new one: a
+    // difference there is for an analyst to decide
+    private static Task<int> RejectNonMembersAsync(AppDbContext db, Guid importId, string[] voteRefs, CancellationToken ct)
+    {
+        return db.Database.ExecuteSqlInterpolatedAsync($"""
+            UPDATE import_rows r
+            SET outcome = 'Invalid', reason = r.country_code || ' was not a member on ' || v.vote_date
+            FROM votes v
+            WHERE r.import_id = {importId} AND r.outcome IS NULL AND r.vote_ref = ANY({voteRefs})
+              AND v.vote_ref = r.vote_ref AND v.vote_date <> r.vote_date
+              AND NOT EXISTS (SELECT 1 FROM country_votes cv WHERE cv.vote_id = v.id AND cv.country_code = r.country_code)
+              AND NOT EXISTS (SELECT 1 FROM member_states m
+                              WHERE m.country_code = r.country_code AND m.member_from <= v.vote_date
+                                AND (m.member_to IS NULL OR v.vote_date <= m.member_to))
+            """, ct);
     }
 
     private static Task<int> ClassifyRowsAsync(AppDbContext db, Guid importId, string[] voteRefs, CancellationToken ct)
@@ -162,9 +188,9 @@ public class ApprovedDataClassifier(IDbContextFactory<AppDbContext> dbFactory)
             """, ct);
     }
 
-    private static Task<long[]> OpenBallotConflictsAsync(AppDbContext db, Guid importId, string[] voteRefs, CancellationToken ct)
+    private static Task<List<ConflictWrite>> OpenBallotConflictsAsync(AppDbContext db, Guid importId, string[] voteRefs, CancellationToken ct)
     {
-        return db.Database.SqlQuery<long>($"""
+        return db.Database.SqlQuery<ConflictWrite>($"""
             INSERT INTO conflicts (vote_id, target, approved_value, approved_source_import_id, approved_source_line,
                                    proposed_value, proposed_source_import_id, proposed_source_line,
                                    published_at, status)
@@ -174,9 +200,11 @@ public class ApprovedDataClassifier(IDbContextFactory<AppDbContext> dbFactory)
             JOIN votes v ON v.vote_ref = r.vote_ref
             JOIN country_votes cv ON cv.vote_id = v.id AND cv.country_code = r.country_code
             WHERE r.import_id = {importId} AND r.outcome = 'Conflict' AND r.vote_ref = ANY({voteRefs})
-            ON CONFLICT (vote_id, target, proposed_value) WHERE status = 'Pending' DO NOTHING
-            RETURNING id AS "Value"
-            """).ToArrayAsync(ct);
+            ON CONFLICT (vote_id, target, proposed_value) WHERE status = 'Pending' DO UPDATE
+                SET published_at = EXCLUDED.published_at
+                WHERE conflicts.published_at < EXCLUDED.published_at
+            RETURNING id, (xmax = 0) AS opened
+            """).ToListAsync(ct);
     }
 
     private static Task LinkRowsToConflictsAsync(AppDbContext db, Guid importId, string[] voteRefs, CancellationToken ct)
@@ -190,5 +218,12 @@ public class ApprovedDataClassifier(IDbContextFactory<AppDbContext> dbFactory)
             WHERE r.import_id = {importId} AND r.outcome = 'Conflict' AND r.vote_ref = ANY({voteRefs})
               AND v.vote_ref = r.vote_ref AND c.target = r.country_code AND c.proposed_value = r.ballot::text
             """, ct);
+    }
+
+    /// <summary>A row returned by opening conflicts: a new conflict, or a pending one a newer publication backs.</summary>
+    private class ConflictWrite
+    {
+        public required long Id { get; init; }
+        public required bool Opened { get; init; }
     }
 }
