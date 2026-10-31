@@ -211,7 +211,7 @@ public class ImportEndpointTests(PostgresFixture postgres, AzuriteFixture azurit
         Guid id = (await response.Content.ReadFromJsonAsync<ImportCreatedDto>())!.ImportId;
 
         await using AppDbContext db = postgres.CreateDbContext();
-        await Wait.Until(async () => await db.Imports.AsNoTracking().AnyAsync(i => i.Id == id && i.Phase == ImportPhase.Checking));
+        await Wait.Until(async () => await db.Imports.AsNoTracking().AnyAsync(i => i.Id == id && i.Phase == ImportPhase.Applying));
         Assert.Equal(1, await db.ImportRows.CountAsync(r => r.ImportId == id));
     }
 

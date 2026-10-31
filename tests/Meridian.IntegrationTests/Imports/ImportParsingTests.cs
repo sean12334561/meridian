@@ -1,37 +1,17 @@
 using System.Text;
 using System.Text.Json;
-using Meridian.Api.Features.Imports;
-using Meridian.Api.Features.Imports.Parsing;
-using Meridian.Api.Shared.Data;
 using Meridian.Api.Shared.Data.Entities;
-using Meridian.Api.Shared.Jobs;
-using Meridian.Api.Shared.Seeding;
-using Meridian.Api.Shared.Storage;
 using Meridian.IntegrationTests.Infrastructure;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Meridian.IntegrationTests.Imports;
 
 public class ImportParsingTests(PostgresFixture postgres, AzuriteFixture azurite)
-    : IClassFixture<PostgresFixture>, IClassFixture<AzuriteFixture>, IAsyncLifetime
+    : ImportPipelineTestBase(postgres, azurite), IClassFixture<PostgresFixture>, IClassFixture<AzuriteFixture>
 {
-    private const string Header = "assembly_vote_id,session,vote_date,resolution_title,country_code,country_name,ballot,published_at";
     private const string Good = "MA/2024/001,79,2024-02-06,\"Title, With Comma\",BRA,Brazil,Y,2024-04-02T09:00:00Z";
 
-    public async Task InitializeAsync()
-    {
-        await using AppDbContext db = postgres.CreateDbContext();
-        await new Seeder(db, NullLogger<Seeder>.Instance).SeedAsync("member_states.csv");
-    }
-
-    public Task DisposeAsync()
-    {
-        return Task.CompletedTask;
-    }
-
     [Fact]
-    public async Task Writes_every_row_with_its_parsed_values_and_moves_to_checking()
+    public async Task Writes_every_row_with_its_parsed_values_and_moves_on()
     {
         string csv = $"{Header}\n{Good}\n" +
                      "MA/2024/002,79,2024-02-07,Other,bra,Brazil,N,2024-04-02T09:00:00Z\n" +
@@ -43,7 +23,7 @@ public class ImportParsingTests(PostgresFixture postgres, AzuriteFixture azurite
 
         Import stored = await Reload(import);
         Assert.Equal(ImportStatus.Running, stored.Status);
-        Assert.Equal(ImportPhase.Checking, stored.Phase);
+        Assert.Equal(ImportPhase.Applying, stored.Phase);
         Assert.Equal(4, stored.ProcessedRows);
         Assert.Equal(4, stored.TotalRows);
 
@@ -124,15 +104,14 @@ public class ImportParsingTests(PostgresFixture postgres, AzuriteFixture azurite
     [Fact]
     public async Task A_retry_after_a_failure_parses_cleanly()
     {
-        Guid id = Guid.NewGuid();
-        Import import = NewImport(id);
+        Import import = NewImport(Guid.NewGuid());
         await Save(import);
 
         await Assert.ThrowsAnyAsync<Exception>(() => Run(import));      // the blob isn't there yet
         await Upload(import, Encoding.UTF8.GetBytes($"{Header}\n{Good}\n"));
         await Run(import);
 
-        Assert.Equal(ImportPhase.Checking, (await Reload(import)).Phase);
+        Assert.Equal(ImportPhase.Applying, (await Reload(import)).Phase);
         Assert.Equal(1, await CountRows(import));
     }
 
@@ -145,7 +124,7 @@ public class ImportParsingTests(PostgresFixture postgres, AzuriteFixture azurite
         await Run(await Reload(import));
 
         Assert.Equal(1, await CountRows(import));
-        Assert.Equal(ImportPhase.Checking, (await Reload(import)).Phase);
+        Assert.Equal(ImportPhase.Applying, (await Reload(import)).Phase);
     }
 
     [Fact]
@@ -159,35 +138,6 @@ public class ImportParsingTests(PostgresFixture postgres, AzuriteFixture azurite
         Assert.Equal((ImportStatus.Failed, "boom"), (stored.Status, stored.Error!));
     }
 
-    private ImportJobHandler Handler()
-    {
-        FixtureDbContextFactory factory = new(postgres);
-
-        return new ImportJobHandler(factory, new ImportParser(factory, Files()));
-    }
-
-    private IFileStore Files()
-    {
-        return BlobFileStore.Create(new StorageOptions { ConnectionString = azurite.ConnectionString });
-    }
-
-    private Task Run(Import import)
-    {
-        return Handler().RunAsync(Job(import), default);
-    }
-
-    private static ClaimedJob Job(Import import)
-    {
-        return new ClaimedJob
-        {
-            Id = 1,
-            Type = ImportJobPayload.JobType,
-            Payload = JsonSerializer.Serialize(new { importId = import.Id, correlationId = "test" }),
-            Attempts = 1,
-            CorrelationId = null,
-        };
-    }
-
     private static string ManyRows(int count)
     {
         StringBuilder csv = new($"{Header}\n");
@@ -196,62 +146,5 @@ public class ImportParsingTests(PostgresFixture postgres, AzuriteFixture azurite
             csv.Append(Good).Append('\n');
         }
         return csv.ToString();
-    }
-
-    private static Import NewImport(Guid id)
-    {
-        return new Import
-        {
-            Id = id,
-            FileName = "votes.csv",
-            BlobKey = $"imports/{id}.csv",
-            Sha256 = new string('a', 64),
-            UploadedBy = 1,
-            Status = ImportStatus.Pending,
-            Phase = ImportPhase.Queued,
-        };
-    }
-
-    private Task<Import> CreateImport(string csv)
-    {
-        return CreateImport(Encoding.UTF8.GetBytes(csv));
-    }
-
-    private async Task<Import> CreateImport(byte[] content)
-    {
-        Import import = NewImport(Guid.NewGuid());
-        await Upload(import, content);
-        await Save(import);
-        return import;
-    }
-
-    private Task Upload(Import import, byte[] content)
-    {
-        return Files().SaveAsync(import.BlobKey, new MemoryStream(content), default);
-    }
-
-    private async Task Save(Import import)
-    {
-        await using AppDbContext db = postgres.CreateDbContext();
-        db.Imports.Add(import);
-        await db.SaveChangesAsync();
-    }
-
-    private async Task<Import> Reload(Import import)
-    {
-        await using AppDbContext db = postgres.CreateDbContext();
-        return await db.Imports.AsNoTracking().SingleAsync(i => i.Id == import.Id);
-    }
-
-    private async Task<List<ImportRow>> Rows(Import import)
-    {
-        await using AppDbContext db = postgres.CreateDbContext();
-        return await db.ImportRows.Where(r => r.ImportId == import.Id).OrderBy(r => r.LineNo).ToListAsync();
-    }
-
-    private async Task<int> CountRows(Import import)
-    {
-        await using AppDbContext db = postgres.CreateDbContext();
-        return await db.ImportRows.CountAsync(r => r.ImportId == import.Id);
     }
 }

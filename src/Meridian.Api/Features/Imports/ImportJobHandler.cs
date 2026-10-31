@@ -1,3 +1,4 @@
+using Meridian.Api.Features.Imports.Classification;
 using Meridian.Api.Features.Imports.Parsing;
 using Meridian.Api.Shared.Data;
 using Meridian.Api.Shared.Data.Entities;
@@ -10,7 +11,7 @@ namespace Meridian.Api.Features.Imports;
 /// Runs the import's phases. Each phase commits the move to the next, so a retry continues from
 /// imports.phase: finished work can't run twice, because nothing may be deleted.
 /// </summary>
-public class ImportJobHandler(IDbContextFactory<AppDbContext> dbFactory, ImportParser parser) : IJobHandler
+public class ImportJobHandler(IDbContextFactory<AppDbContext> dbFactory, ImportParser parser, InFileChecks inFileChecks) : IJobHandler
 {
     public async Task RunAsync(ClaimedJob job, CancellationToken ct)
     {
@@ -24,6 +25,11 @@ public class ImportJobHandler(IDbContextFactory<AppDbContext> dbFactory, ImportP
             if (import.Phase <= ImportPhase.Parsing)
             {
                 await parser.ParseAsync(import, ct);
+            }
+
+            if (import.Phase <= ImportPhase.Checking)
+            {
+                await inFileChecks.RunAsync(importId, ct);
             }
         }
         catch (ImportFileException ex)
