@@ -12,6 +12,7 @@ public class CorrelationIdMiddleware(RequestDelegate next, ILogger<CorrelationId
     {
         string id = ResolveId(context);
         correlation.Id = id;
+        Activity.Current?.SetTag("correlation.id", id);
 
         // OnStarting, because the exception handler clears headers set before it runs
         context.Response.OnStarting(() =>

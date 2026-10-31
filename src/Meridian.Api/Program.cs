@@ -15,6 +15,7 @@ using Meridian.Api.Shared.Observability;
 using Meridian.Api.Shared.Seeding;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.OpenApi;
+using OpenTelemetry.Logs;
 using OpenTelemetry.Trace;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
@@ -41,6 +42,7 @@ if (builder.Configuration.GetValue<bool>("Worker:Enabled"))
     builder.Services.AddHostedService<JobWorker>();
 if (!string.IsNullOrEmpty(builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"]))
 {
+    builder.Logging.AddOpenTelemetry(o => o.IncludeScopes = true);      // the correlation ID is a log scope
     builder.Services.AddOpenTelemetry()
         .UseAzureMonitor()
         .WithTracing(t => t.AddSource(JobWorker.ActivitySourceName));
