@@ -79,7 +79,11 @@ public class JobWorkerTests(PostgresFixture postgres) : IClassFixture<PostgresFi
         Job unknown = await AddJob("no-such-type");
         Job next = await AddJob("test");
 
-        await WhileWorkerRuns(() => WaitForStatus(next, JobStatus.Succeeded));
+        await WhileWorkerRuns(async () =>
+        {
+            await WaitForStatus(next, JobStatus.Succeeded);
+            await Wait.Until(async () => (await Reload(unknown)).LastError is not null);
+        });
 
         Job stored = await Reload(unknown);
         Assert.Equal(JobStatus.Pending, stored.Status);

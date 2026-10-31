@@ -41,4 +41,14 @@ public class SnapshotsController : ControllerBase
     {
         return handler.Handle(id, code, ct);
     }
+
+    [HttpPost("{id:long}/publish", Name = nameof(PublishSnapshot)), Authorize(Policy = Policies.Admin)]
+    [ProducesResponseType<PublicationDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType<HttpValidationProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")]
+    public Task<PublicationDto> PublishSnapshot(long id, PublishSnapshot.Request request, [FromServices] PublishSnapshot.Handler handler, CancellationToken ct)
+    {
+        return handler.Handle(id, request, ct);
+    }
 }

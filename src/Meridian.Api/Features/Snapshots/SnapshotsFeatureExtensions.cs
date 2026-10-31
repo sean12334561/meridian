@@ -10,6 +10,7 @@ public static class SnapshotsFeatureExtensions
         services.AddScoped<GetSnapshots.Handler>();
         services.AddScoped<GetSnapshot.Handler>();
         services.AddScoped<GetCountryBreakdown.Handler>();
+        services.AddScoped<PublishSnapshot.Handler>();
 
         services.AddKeyedScoped<IJobHandler, SnapshotJobHandler>(SnapshotJobPayload.JobType);
 

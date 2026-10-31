@@ -36,6 +36,7 @@ How AI tools were used on this project, what was checked by hand, and where the 
 | 17. Positions | Added `SetPosition` and `SetPositionsBulk`, admin only, with field errors and one history row per vote. Done unattended | TODO |
 | 18. Snapshot calculation | Added `CreateSnapshot` and `SnapshotJobHandler` with the set-based scoring SQL, with tests for the assignment example, abstention, ties, the minimum and immutability. Done unattended | TODO |
 | 19. Snapshot reads | Added the snapshot list, detail with ranking and rules, and country breakdown. Done unattended | TODO |
+| 20. Publishing | Added `PublishSnapshot` with supersede and a 409 on a concurrent publish, and merged publications into the vote timeline. Done unattended | TODO |
 
 ## Where the AI was wrong or needed correcting
 
