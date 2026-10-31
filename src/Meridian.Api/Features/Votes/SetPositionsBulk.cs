@@ -36,7 +36,9 @@ public static class SetPositionsBulk
         {
             await validator.ValidateAndThrowAsync(request, ct);
 
-            IQueryable<Vote> matching = request.Apply(db.Votes);
+            // Votes that already have these values change nothing, so they get no history row
+            IQueryable<Vote> matching = request.Apply(db.Votes)
+                .Where(v => v.Position != request.DesiredOutcome || v.Weight != request.Weight);
             if (request.OnlyMissing)
             {
                 matching = matching.Where(v => v.Position == null);

@@ -36,8 +36,9 @@ public class ApprovedDataClassifier(IDbContextFactory<AppDbContext> dbFactory)
                 i => i.ProcessedRows,
                 i => db.ImportRows.Count(r => r.ImportId == importId && r.Outcome != null)), ct);
 
+        // Contradiction rows count too: their ballots are out, but a vote with only those can still change details
         List<string> voteRefs = await db.ImportRows
-            .Where(r => r.ImportId == importId && r.Outcome == null)
+            .Where(r => r.ImportId == importId && (r.Outcome == null || r.Outcome == RowOutcome.Contradiction))
             .Select(r => r.VoteRef!)
             .Distinct()
             .OrderBy(voteRef => voteRef)

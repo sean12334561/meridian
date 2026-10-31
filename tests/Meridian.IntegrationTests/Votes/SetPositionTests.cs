@@ -60,6 +60,7 @@ public class SetPositionTests(PostgresFixture postgres, AzuriteFixture azurite)
 
     [Theory]
     [InlineData("Y", 7, "weight")]
+    [InlineData("Y", 6, "weight")]
     [InlineData("Y", 0, "weight")]
     [InlineData("A", 3, "desiredOutcome")]
     public async Task Bad_values_get_an_error_on_the_field(string outcome, int weight, string field)
@@ -107,6 +108,22 @@ public class SetPositionTests(PostgresFixture postgres, AzuriteFixture azurite)
 
         await using AppDbContext db = _postgres.CreateDbContext();
         Assert.Equal(("Y", (int?)1), await Position(db, byHand));
+    }
+
+    [Fact]
+    public async Task Bulk_skips_votes_that_already_have_those_values()
+    {
+        long same = await CreateVote("MA/5007/001");
+        long different = await CreateVote("MA/5007/002");
+        await Put($"/api/votes/{same}/position", new { desiredOutcome = "Y", weight = 3 });
+        await Put($"/api/votes/{different}/position", new { desiredOutcome = "Y", weight = 2 });
+
+        HttpResponseMessage response = await Post("/api/votes/positions/bulk", new { q = "MA/5007", desiredOutcome = "Y", weight = 3, onlyMissing = false }, Lena);
+
+        Assert.Equal(1, (await response.Content.ReadFromJsonAsync<BulkPositionResultDto>(Json))!.Updated);
+        await using AppDbContext db = _postgres.CreateDbContext();
+        Assert.Equal(1, await db.VoteHistory.CountAsync(h => h.VoteId == same && h.Type == HistoryType.PositionChanged));
+        Assert.Equal(2, await db.VoteHistory.CountAsync(h => h.VoteId == different && h.Type == HistoryType.PositionChanged));
     }
 
     [Fact]

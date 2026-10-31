@@ -61,6 +61,11 @@ public class ImportReportWriter(IDbContextFactory<AppDbContext> dbFactory)
                                    'normalized', COUNT(*) FILTER (WHERE r.normalizations IS NOT NULL))
                                FROM import_rows r WHERE r.import_id = {importId}),
                     'conflictsOpened', (SELECT COUNT(*) FROM conflicts c WHERE c.proposed_source_import_id = {importId}),
+                    'identicalTo', (SELECT jsonb_build_object('importId', e.id, 'fileName', e.file_name, 'uploadedAt', e.uploaded_at)
+                                    FROM imports e
+                                    WHERE e.sha256 = i.sha256 AND e.uploaded_at < i.uploaded_at
+                                    ORDER BY e.uploaded_at
+                                    LIMIT 1),
                     'votes', (SELECT COALESCE(jsonb_agg(jsonb_build_object(
                                    'voteRef', p.vote_ref,
                                    'new', p.new_rows,

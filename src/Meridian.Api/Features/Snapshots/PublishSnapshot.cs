@@ -22,7 +22,7 @@ public static class PublishSnapshot
     {
         public Validator()
         {
-            RuleFor(r => r.Quarter).NotEmpty().Matches(@"^\d{4}-Q[1-4]$").WithMessage("Quarter must look like 2024-Q1.");
+            RuleFor(r => r.Quarter).NotEmpty().Matches(@"^\d{4}-Q[1-4]\z").WithMessage("Quarter must look like 2024-Q1.");
             RuleFor(r => r.Reason).MaximumLength(1000);
         }
     }

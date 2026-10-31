@@ -13,9 +13,11 @@ public class ImportParsingTests(PostgresFixture postgres, AzuriteFixture azurite
     [Fact]
     public async Task Writes_every_row_with_its_parsed_values_and_moves_on()
     {
-        string csv = $"{Header}\n{Good}\n" +
-                     "MA/2024/002,79,2024-02-07,Other,bra,Brazil,N,2024-04-02T09:00:00Z\n" +
-                     "MA/2024/003,79,2024-02-08,Other,BRA,Brazil,Yes,2024-04-02T09:00:00Z\n" +
+        // Its own votes: approved data stays between tests, and New is asserted below
+        const string firstRow = "MA/2400/001,79,2024-02-06,\"Title, With Comma\",BRA,Brazil,Y,2024-04-02T09:00:00Z";
+        string csv = $"{Header}\n{firstRow}\n" +
+                     "MA/2400/002,79,2024-02-07,Other,bra,Brazil,N,2024-04-02T09:00:00Z\n" +
+                     "MA/2400/003,79,2024-02-08,Other,BRA,Brazil,Yes,2024-04-02T09:00:00Z\n" +
                      "too,few\n";
         Import import = await CreateImport(csv);
 
@@ -31,8 +33,8 @@ public class ImportParsingTests(PostgresFixture postgres, AzuriteFixture azurite
         Assert.Equal([2, 3, 4, 5], rows.Select(r => r.LineNo));
 
         ImportRow good = rows[0];
-        Assert.Equal(Good, good.RawText);
-        Assert.Equal("MA/2024/001", good.VoteRef);
+        Assert.Equal(firstRow, good.RawText);
+        Assert.Equal("MA/2400/001", good.VoteRef);
         Assert.Equal(79, good.Session);
         Assert.Equal(new DateOnly(2024, 2, 6), good.VoteDate);
         Assert.Equal("Title, With Comma", good.Title);

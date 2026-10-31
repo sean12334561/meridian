@@ -5,7 +5,18 @@ public class ImportReportDto
 {
     public required ImportReportTotals Totals { get; init; }
     public required int ConflictsOpened { get; init; }
+
+    /// <summary>The first earlier import with the same file contents. Null if there is none.</summary>
+    public ImportReferenceDto? IdenticalTo { get; init; }
+
     public required List<VoteReportDto> Votes { get; init; }
+}
+
+public class ImportReferenceDto
+{
+    public required Guid ImportId { get; init; }
+    public required string FileName { get; init; }
+    public required DateTimeOffset UploadedAt { get; init; }
 }
 
 public class ImportReportTotals

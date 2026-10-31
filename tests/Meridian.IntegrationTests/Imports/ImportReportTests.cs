@@ -1,8 +1,13 @@
 using System.Net;
+using System.Security.Cryptography;
+using System.Text;
+using Meridian.Api.Features.Conflicts;
 using Meridian.Api.Features.Imports;
+using Meridian.Api.Shared.Data;
 using Meridian.Api.Shared.Data.Entities;
 using Meridian.Api.Shared.Paging;
 using Meridian.IntegrationTests.Infrastructure;
+using Microsoft.EntityFrameworkCore;
 
 namespace Meridian.IntegrationTests.Imports;
 
@@ -10,6 +15,8 @@ public class ImportReportTests(PostgresFixture postgres, AzuriteFixture azurite)
     : ApiTestBase(postgres, azurite), IClassFixture<PostgresFixture>, IClassFixture<AzuriteFixture>
 {
     private const string Published = "2024-04-02T09:00:00Z";
+
+    private readonly PostgresFixture _postgres = postgres;
 
     [Fact]
     public async Task The_report_has_totals_and_a_result_per_vote()
@@ -65,6 +72,69 @@ public class ImportReportTests(PostgresFixture postgres, AzuriteFixture azurite)
     }
 
     [Fact]
+    public async Task Details_already_decided_are_reported_as_decided()
+    {
+        await RunFile(Row("MA/2304/001", "BRA", "Y"));
+        string changed = Row("MA/2304/001", "BRA", "Y", title: "Other");
+        await RunFile(changed);
+        await Reject("MA/2304/001");
+
+        Import reupload = await RunFile(changed);
+
+        ImportReportDto report = await GetOk<ImportReportDto>($"/api/imports/{reupload.Id}/report");
+        Assert.Equal(VoteDetailsStatus.PreviouslyDecided, report.Votes.Single().Details);
+        Assert.Equal(0, report.ConflictsOpened);
+    }
+
+    [Fact]
+    public async Task Changed_details_open_a_conflict_even_if_every_ballot_contradicts_itself()
+    {
+        await RunFile(Row("MA/2305/001", "BRA", "Y"));
+
+        Import import = await RunFile(Row("MA/2305/001", "BRA", "Y", title: "Other"), Row("MA/2305/001", "BRA", "N", title: "Other"));
+
+        ImportReportDto report = await GetOk<ImportReportDto>($"/api/imports/{import.Id}/report");
+        Assert.Equal((VoteDetailsStatus.Conflict, 1, 2), (report.Votes.Single().Details, report.ConflictsOpened, report.Totals.Contradiction));
+    }
+
+    [Fact]
+    public async Task A_report_names_the_first_earlier_import_of_the_same_file()
+    {
+        string sha256 = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(Guid.NewGuid().ToString())));
+        Import first = await RunWithHash(sha256, Row("MA/2306/001", "BRA", "Y"));
+        await RunWithHash(sha256, Row("MA/2306/001", "BRA", "Y"));
+        Import third = await RunWithHash(sha256, Row("MA/2306/001", "BRA", "Y"));
+
+        ImportReportDto firstReport = await GetOk<ImportReportDto>($"/api/imports/{first.Id}/report");
+        ImportReportDto thirdReport = await GetOk<ImportReportDto>($"/api/imports/{third.Id}/report");
+
+        Assert.Null(firstReport.IdenticalTo);
+        Assert.Equal((first.Id, "votes.csv"), (thirdReport.IdenticalTo!.ImportId, thirdReport.IdenticalTo.FileName));
+    }
+
+    [Fact]
+    public async Task A_retry_after_completion_keeps_the_stored_report()
+    {
+        Import import = await RunFile(Row("MA/2307/001", "BRA", "Y"));
+        DateTimeOffset? completedAt = (await Reload(import)).CompletedAt;
+
+        await Run(import);
+
+        Assert.Equal(completedAt, (await Reload(import)).CompletedAt);
+    }
+
+    [Fact]
+    public async Task A_failure_after_completion_leaves_the_import_completed()
+    {
+        Import import = await RunFile(Row("MA/2308/001", "BRA", "Y"));
+
+        await Handler().OnFailedAsync(Job(import), "Worker lost", default);
+
+        Import stored = await Reload(import);
+        Assert.Equal((ImportStatus.Completed, null), (stored.Status, stored.Error));
+    }
+
+    [Fact]
     public async Task An_unfinished_import_has_no_report()
     {
         Import import = await CreateImport($"{Header}\n");
@@ -98,6 +168,7 @@ public class ImportReportTests(PostgresFixture postgres, AzuriteFixture azurite)
     [InlineData("page=0")]
     [InlineData("pageSize=0")]
     [InlineData("pageSize=101")]
+    [InlineData("page=2147483647&pageSize=100")]
     public async Task Bad_paging_gets_a_400(string query)
     {
         Import import = await CreateImport($"{Header}\n");
@@ -109,6 +180,28 @@ public class ImportReportTests(PostgresFixture postgres, AzuriteFixture azurite)
     public async Task Rows_of_an_unknown_import_get_a_404()
     {
         Assert.Equal(HttpStatusCode.NotFound, (await Get($"/api/imports/{Guid.NewGuid()}/rows")).StatusCode);
+    }
+
+    private async Task<Import> RunWithHash(string sha256, params string[] rows)
+    {
+        Import import = NewImport(Guid.NewGuid());
+        import.Sha256 = sha256;
+        await Upload(import, Encoding.UTF8.GetBytes($"{Header}\n{string.Join('\n', rows)}\n"));
+        await Save(import);
+        await Run(import);
+        return import;
+    }
+
+    private async Task Reject(string voteRef)
+    {
+        await using AppDbContext db = _postgres.CreateDbContext();
+        long conflictId = await db.Conflicts
+            .Where(c => c.Status == ConflictStatus.Pending && db.Votes.Any(v => v.Id == c.VoteId && v.VoteRef == voteRef))
+            .Select(c => c.Id)
+            .SingleAsync();
+
+        HttpResponseMessage response = await Post($"/api/conflicts/{conflictId}/decision", new DecideConflict.Request { Decision = Decision.Reject });
+        response.EnsureSuccessStatusCode();
     }
 
     private static string Row(string voteRef, string country, string ballot, string title = "Title")

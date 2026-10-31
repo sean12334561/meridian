@@ -60,9 +60,10 @@ public class SnapshotJobHandler(IDbContextFactory<AppDbContext> dbFactory) : IJo
     {
         long snapshotId = job.ReadPayload<SnapshotJobPayload>().SnapshotId;
 
+        // The job can fail after the snapshot committed, and a completed snapshot is never modified
         await using AppDbContext db = await dbFactory.CreateDbContextAsync(ct);
         await db.Snapshots
-            .Where(s => s.Id == snapshotId)
+            .Where(s => s.Id == snapshotId && s.Status != SnapshotStatus.Completed)
             .ExecuteUpdateAsync(s => s
                 .SetProperty(x => x.Status, SnapshotStatus.Failed)
                 .SetProperty(x => x.Error, error)

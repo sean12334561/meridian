@@ -9,6 +9,7 @@ public class SnapshotFilter
     public required DateOnly? To { get; init; }
     public required int? Session { get; init; }
     public required long[]? RequestedVoteIds { get; init; }
+    public string[]? RequestedVoteRefs { get; init; }
     public required long[] VoteIds { get; init; }
 }
 

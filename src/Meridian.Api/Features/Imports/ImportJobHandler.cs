@@ -37,8 +37,12 @@ public class ImportJobHandler(
                 await inFileChecks.RunAsync(importId, ct);
             }
 
-            await classifier.RunAsync(import, ct);
-            await reportWriter.CompleteAsync(importId, ct);
+            // A retry after the report was written must not rewrite it: decisions may have come since
+            if (import.Phase < ImportPhase.Done)
+            {
+                await classifier.RunAsync(import, ct);
+                await reportWriter.CompleteAsync(importId, ct);
+            }
         }
         catch (ImportFileException ex)
         {
@@ -54,9 +58,10 @@ public class ImportJobHandler(
 
     private async Task MarkFailedAsync(Guid importId, string error, CancellationToken ct)
     {
+        // The job can fail after the import completed, and its stored report must stay valid
         await using AppDbContext db = await dbFactory.CreateDbContextAsync(ct);
         await db.Imports
-            .Where(i => i.Id == importId)
+            .Where(i => i.Id == importId && i.Status != ImportStatus.Completed)
             .ExecuteUpdateAsync(s => s
                 .SetProperty(i => i.Status, ImportStatus.Failed)
                 .SetProperty(i => i.Error, error)

@@ -16,6 +16,7 @@ export type { IFormFile } from './models/i-form-file';
 export type { ImportCreatedDto } from './models/import-created-dto';
 export type { ImportDto } from './models/import-dto';
 export type { ImportPhase } from './models/import-phase';
+export type { ImportReferenceDto } from './models/import-reference-dto';
 export type { ImportReportDto } from './models/import-report-dto';
 export type { ImportReportTotals } from './models/import-report-totals';
 export type { ImportRowDto } from './models/import-row-dto';

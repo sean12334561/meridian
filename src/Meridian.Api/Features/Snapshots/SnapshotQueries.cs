@@ -21,6 +21,7 @@ public static class SnapshotQueries
                 CompletedAt = s.CompletedAt,
                 PublishedQuarter = db.SnapshotPublications
                     .Where(p => p.SnapshotId == s.Id && p.WithdrawnAt == null)
+                    .OrderByDescending(p => p.PublishedAt)
                     .Select(p => p.Quarter)
                     .FirstOrDefault(),
             });

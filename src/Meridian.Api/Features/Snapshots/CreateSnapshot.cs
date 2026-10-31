@@ -22,6 +22,10 @@ public static class CreateSnapshot
         public DateOnly? To { get; init; }
         public int? Session { get; init; }
         public long[]? VoteIds { get; init; }
+
+        /// <summary>Assembly references such as MA/2024/117, the identifier people see.</summary>
+        public string[]? VoteRefs { get; init; }
+
         public bool ExcludeMissingPositions { get; init; }
         public int MinCountedVotes { get; init; } = 1;
     }
@@ -33,9 +37,9 @@ public static class CreateSnapshot
             RuleFor(r => r.Name).NotEmpty().MaximumLength(200);
             RuleFor(r => r.MinCountedVotes).GreaterThanOrEqualTo(1);
             RuleFor(r => r.To).GreaterThanOrEqualTo(r => r.From).When(r => r.From is not null && r.To is not null);
-            RuleFor(r => r.VoteIds)
-                .Must((request, _) => request.From is not null || request.To is not null
-                                      || request.Session is not null || request.VoteIds is { Length: > 0 })
+            RuleFor(r => r.VoteRefs)
+                .Must((request, _) => request.From is not null || request.To is not null || request.Session is not null
+                                      || request.VoteIds is { Length: > 0 } || request.VoteRefs is { Length: > 0 })
                 .WithMessage("Choose a date range, a session or a list of votes.");
         }
     }
@@ -54,7 +58,7 @@ public static class CreateSnapshot
             List<SelectedVote> selected = await SelectVotesAsync(request, ct);
             if (selected.Count == 0)
             {
-                throw new ValidationException([new ValidationFailure(nameof(Request.VoteIds), "No votes match this selection.")]);
+                throw new ValidationException([new ValidationFailure(nameof(Request.VoteRefs), "No votes match this selection.")]);
             }
 
             List<SelectedVote> missing = selected.Where(v => !v.HasPosition).ToList();
@@ -66,7 +70,7 @@ public static class CreateSnapshot
             long[] voteIds = selected.Where(v => v.HasPosition).Select(v => v.Id).ToArray();
             if (voteIds.Length == 0)
             {
-                throw new ValidationException([new ValidationFailure(nameof(Request.VoteIds), "None of these votes has a position.")]);
+                throw new ValidationException([new ValidationFailure(nameof(Request.VoteRefs), "None of these votes has a position.")]);
             }
 
             Snapshot snapshot = new()
@@ -78,6 +82,7 @@ public static class CreateSnapshot
                     To = request.To,
                     Session = request.Session,
                     RequestedVoteIds = request.VoteIds,
+                    RequestedVoteRefs = request.VoteRefs,
                     VoteIds = voteIds,
                 }),
                 Rules = SnapshotJson.Write(new SnapshotRules
@@ -106,10 +111,12 @@ public static class CreateSnapshot
         {
             bool hasFilter = request.From is not null || request.To is not null || request.Session is not null;
             long[] listed = request.VoteIds ?? [];
+            string[] listedRefs = request.VoteRefs ?? [];
 
             List<SelectedVote> selected = await db.Votes
                 .AsNoTracking()
                 .Where(v => listed.Contains(v.Id)
+                            || listedRefs.Contains(v.VoteRef)
                             || (hasFilter
                                 && (request.From == null || v.VoteDate >= request.From)
                                 && (request.To == null || v.VoteDate <= request.To)
@@ -121,6 +128,12 @@ public static class CreateSnapshot
             if (unknown.Length > 0)
             {
                 throw new ValidationException([new ValidationFailure(nameof(Request.VoteIds), $"Unknown votes: {string.Join(", ", unknown)}.")]);
+            }
+
+            string[] unknownRefs = listedRefs.Except(selected.Select(v => v.VoteRef)).ToArray();
+            if (unknownRefs.Length > 0)
+            {
+                throw new ValidationException([new ValidationFailure(nameof(Request.VoteRefs), $"Unknown votes: {string.Join(", ", unknownRefs)}.")]);
             }
 
             return selected;

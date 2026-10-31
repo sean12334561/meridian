@@ -1732,6 +1732,15 @@
               "format": "int64"
             }
           },
+          "voteRefs": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
           "excludeMissingPositions": {
             "type": "boolean"
           },
@@ -1900,6 +1909,27 @@
           "Done"
         ]
       },
+      "ImportReferenceDto": {
+        "required": [
+          "importId",
+          "fileName",
+          "uploadedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "importId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "fileName": {
+            "type": "string"
+          },
+          "uploadedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
       "ImportReportDto": {
         "required": [
           "totals",
@@ -1914,6 +1944,16 @@
           "conflictsOpened": {
             "type": "integer",
             "format": "int32"
+          },
+          "identicalTo": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ImportReferenceDto"
+              }
+            ]
           },
           "votes": {
             "type": "array",

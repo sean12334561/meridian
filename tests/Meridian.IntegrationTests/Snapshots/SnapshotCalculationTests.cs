@@ -134,13 +134,67 @@ public class SnapshotCalculationTests(PostgresFixture postgres, AzuriteFixture a
     [Fact]
     public async Task A_filter_and_a_list_add_up()
     {
-        long a = await LoadVote("MA/6007/001", "Y", 1, ("BRA", "Y"));
+        long inFilter = await LoadVote("MA/6007/001", "Y", 1, ("BRA", "Y"));
+        await RunFile($"MA/6007/002,80,2023-01-02,Title,BRA,Name,Y,{Published}");
+        long outsideFilter = await VoteId("MA/6007/002");
+        await Put($"/api/votes/{outsideFilter}/position", new { desiredOutcome = "Y", weight = 1 });
 
-        long id = await CreateSnapshot(new { name = "Both", from = "2024-02-06", to = "2024-02-06", voteIds = new[] { a } });
+        long id = await CreateSnapshot(new
+        {
+            name = "Both",
+            from = "2024-02-06",
+            to = "2024-02-06",
+            voteIds = new[] { outsideFilter },
+            excludeMissingPositions = true,
+        });
 
         await using AppDbContext db = _postgres.CreateDbContext();
         long[] selected = SnapshotJson.Read<SnapshotFilter>((await db.Snapshots.SingleAsync(s => s.Id == id)).Filter).VoteIds;
-        Assert.Contains(a, selected);
+        Assert.Contains(inFilter, selected);
+        Assert.Contains(outsideFilter, selected);
+    }
+
+    [Fact]
+    public async Task Votes_can_be_listed_by_their_reference()
+    {
+        long vote = await LoadVote("MA/6008/001", "Y", 1, ("BRA", "Y"));
+
+        long id = await CreateSnapshot(new { name = "By reference", voteRefs = new[] { "MA/6008/001" } });
+
+        await using AppDbContext db = _postgres.CreateDbContext();
+        Assert.Equal([vote], SnapshotJson.Read<SnapshotFilter>((await db.Snapshots.SingleAsync(s => s.Id == id)).Filter).VoteIds);
+    }
+
+    [Fact]
+    public async Task An_unknown_reference_is_named_on_the_field_even_with_a_filter()
+    {
+        await LoadVote("MA/6009/001", "Y", 1, ("BRA", "Y"));
+
+        HttpResponseMessage response = await Post("/api/snapshots", new
+        {
+            name = "Typo",
+            from = "2024-02-06",
+            voteRefs = new[] { "MA/6009/001", "MA/6009/999" },
+            excludeMissingPositions = true,
+        });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        using JsonDocument problem = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        string message = problem.RootElement.GetProperty("errors").GetProperty("voteRefs")[0].GetString()!;
+        Assert.Contains("MA/6009/999", message);
+        Assert.DoesNotContain("MA/6009/001", message);
+    }
+
+    [Fact]
+    public async Task A_failure_after_completion_leaves_the_snapshot_completed()
+    {
+        long id = await Compute(await LoadVote("MA/6010/001", "Y", 1, ("BRA", "Y")));
+
+        await new SnapshotJobHandler(new FixtureDbContextFactory(_postgres)).OnFailedAsync(SnapshotJob(id), "Worker lost", default);
+
+        await using AppDbContext db = _postgres.CreateDbContext();
+        Snapshot snapshot = await db.Snapshots.SingleAsync(s => s.Id == id);
+        Assert.Equal((SnapshotStatus.Completed, null), (snapshot.Status, snapshot.Error));
     }
 
     [Theory]
@@ -149,6 +203,8 @@ public class SnapshotCalculationTests(PostgresFixture postgres, AzuriteFixture a
     [InlineData("""{"name":"Zero","voteIds":[1],"minCountedVotes":0}""")]
     [InlineData("""{"name":"Nothing matches","session":1}""")]
     [InlineData("""{"name":"Unknown","voteIds":[99999999]}""")]
+    [InlineData("""{"name":"Unknown","voteRefs":["MA/0000/000"]}""")]
+    [InlineData("""{"name":"Empty list","voteRefs":[]}""")]
     public async Task Bad_requests_get_a_400(string body)
     {
         HttpResponseMessage response = await Post("/api/snapshots", JsonSerializer.Deserialize<JsonElement>(body));

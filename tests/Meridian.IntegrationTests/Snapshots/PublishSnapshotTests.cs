@@ -98,6 +98,7 @@ public class PublishSnapshotTests(PostgresFixture postgres, AzuriteFixture azuri
     [InlineData("2024")]
     [InlineData("2024-Q5")]
     [InlineData("Q1-2024")]
+    [InlineData("2024-Q1\n")]
     public async Task A_bad_quarter_gets_a_400(string quarter)
     {
         Assert.Equal(HttpStatusCode.BadRequest, (await Publish(1, quarter)).StatusCode);
@@ -122,6 +123,35 @@ public class PublishSnapshotTests(PostgresFixture postgres, AzuriteFixture azuri
         TimelineEntryDto published = timeline[0];
         Assert.Equal(("Published", "2031-Q4", "Lena", id), (published.Type, published.Target, published.ActorName, published.SnapshotId!.Value));
         Assert.DoesNotContain(await GetOk<List<TimelineEntryDto>>($"/api/votes/{other}/timeline"), t => t.Type == "Published");
+    }
+
+    [Fact]
+    public async Task The_timeline_shows_when_a_publication_was_withdrawn()
+    {
+        long replaced = await LoadVote("MA/6207/001", "Y", 4, ("BRA", "Y"));
+        long replacing = await LoadVote("MA/6207/002", "Y", 4, ("BRA", "Y"));
+        long first = await Compute(replaced);
+        long second = await Compute(replacing);
+        await Publish(first, "2032-Q1");
+        await Publish(second, "2032-Q1", "Corrected weights");
+
+        List<TimelineEntryDto> timeline = await GetOk<List<TimelineEntryDto>>($"/api/votes/{replaced}/timeline");
+
+        Assert.Equal(["Withdrawn", "Published"], timeline.Take(2).Select(t => t.Type));
+        Assert.Equal(("2032-Q1", "Lena", first), (timeline[0].Target, timeline[0].ActorName, timeline[0].SnapshotId!.Value));
+        Assert.DoesNotContain(await GetOk<List<TimelineEntryDto>>($"/api/votes/{replacing}/timeline"), t => t.Type == "Withdrawn");
+    }
+
+    [Fact]
+    public async Task A_snapshot_published_for_two_quarters_lists_the_latest()
+    {
+        long id = await Compute(await LoadVote("MA/6208/001", "Y", 4, ("BRA", "Y")));
+        await Publish(id, "2032-Q3");
+        await Publish(id, "2032-Q2");
+
+        List<SnapshotSummaryDto> snapshots = await GetOk<List<SnapshotSummaryDto>>("/api/snapshots");
+
+        Assert.Equal("2032-Q2", snapshots.Single(s => s.Id == id).PublishedQuarter);
     }
 
     private Task<HttpResponseMessage> Publish(long id, string quarter, string? reason = null)

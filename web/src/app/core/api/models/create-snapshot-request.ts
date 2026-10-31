@@ -9,4 +9,5 @@ export interface CreateSnapshotRequest {
   session?: (number | null);
   to?: (string | null);
   voteIds?: (Array<number> | null);
+  voteRefs?: (Array<string> | null);
 }
