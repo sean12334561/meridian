@@ -25,6 +25,7 @@ How AI tools were used on this project, what was checked by hand, and where the 
 | 6. Auth and users | Added `HeaderAuthenticationHandler`, `ICurrentUser`, the two policies, the Users slice and tests against real seeded users. Reading the generated contract showed wrong types the tests had missed (roles as integers, no 200 on `/api/me`); fixed and covered with a contract test | TODO |
 | 7. HistoryWriter and locks | Added `HistoryWriter` with per-row methods and set-based bulk methods for imports, the `Locks.ApprovedData` constant, and tests for row contents and for history committing and rolling back with its transaction. Bulk methods refuse to run outside a transaction | TODO |
 | 8. Background jobs | Added `JobQueue`, `JobWorker`, `IJobHandler` and the worker settings, with tests against real PostgreSQL for concurrent claims, lease expiry, retries, the attempt limit and shutdown. The AI found that the LLD let a job that crashes its worker retry forever; the author chose to fail it after 3 attempts | TODO |
+| 9. File store | Added `IFileStore` and `BlobFileStore` with write-once saves, SAS URL and connection string modes, and tests against a real Azurite container, including a generated SAS and a large non-seekable stream | TODO |
 
 ## Where the AI was wrong or needed correcting
 
