@@ -7,6 +7,7 @@ const tones: Record<string, string> = {
   Unchanged: 'quiet',
   Duplicate: 'quiet',
   Superseded: 'quiet',
+  'No position': 'bad',
   Pending: 'warn',
   Running: 'warn',
   Conflict: 'warn',
