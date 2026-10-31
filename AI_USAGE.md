@@ -44,6 +44,7 @@ How AI tools were used on this project, what was checked by hand, and where the 
 | 25. Votes screens | Added the vote list with filters and bulk positions, and the vote detail with the position form, timeline and ballots. Done unattended | TODO |
 | 26. Snapshot screens | Added the create form with the missing-positions flow, the list, the detail with rules, ranking and publishing, and the country breakdown. Done unattended | TODO |
 | 27. Web image and Compose | Added the nginx image and the `web` service, then ran the whole system in a real browser with three users. Done unattended | TODO |
+| 28. README and final checks | Filled in the measured load time and known limitations and ran the final checks. Done unattended. The Azure run is still to do | TODO |
 
 ## Where the AI was wrong or needed correcting
 

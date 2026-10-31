@@ -2,8 +2,6 @@
 
 Imports Assembly vote CSVs, detects conflicts with approved data, lets analysts decide them, lets the admin set positions and weights, and produces immutable, reproducible country ranking snapshots.
 
-> **Status:** in progress. Sections marked TODO are filled in as the matching feature lands.
-
 ## Design documents
 
 - [High-level design](docs/HLD.md)
@@ -67,8 +65,19 @@ Integration tests start a throwaway PostgreSQL through Testcontainers, so Docker
 
 ## Measured load time
 
-TODO: time to import the historic file, the machine it ran on, and the database it ran against.
+`assembly_historic.csv` (104 MB, 962,171 rows), from upload to Completed:
+
+| Run | Database | Time |
+| --- | --- | --- |
+| Compose stack, upload to the API port | `postgres:17` container | 57 s |
+| Compose stack, upload through nginx | `postgres:17` container | 105 s |
+| Azure | Azure Database for PostgreSQL | Not measured yet |
+
+Both local runs used Docker Desktop on Windows with an AMD Ryzen 7 7800X3D, 16 CPUs and 16 GB given to Docker. The file was the first large import in a nearly empty database. The results were 962,109 new rows, 32 invalid and 30 duplicates.
 
 ## Known limitations
 
-TODO
+- Header authentication can be spoofed by anyone who can reach the API. Production auth is out of scope.
+- A conflict decision waits for the import batch holding the same lock. It waited up to about 4.6 seconds while the historic file was applying.
+- The Angular app has no automated tests in the repo. The backend has unit and integration suites.
+- Application Insights export has not been checked against a real resource. It is off unless `APPLICATIONINSIGHTS_CONNECTION_STRING` is set.
