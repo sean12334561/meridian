@@ -16,6 +16,29 @@ public class SnapshotsController : ControllerBase
     {
         SnapshotCreatedDto created = await handler.Handle(request, ct);
 
-        return Accepted(created);
+        return AcceptedAtRoute(nameof(GetSnapshot), new { id = created.SnapshotId }, created);
+    }
+
+    [HttpGet(Name = nameof(GetSnapshots))]
+    [ProducesResponseType<List<SnapshotSummaryDto>>(StatusCodes.Status200OK)]
+    public Task<List<SnapshotSummaryDto>> GetSnapshots([FromServices] GetSnapshots.Handler handler, CancellationToken ct)
+    {
+        return handler.Handle(ct);
+    }
+
+    [HttpGet("{id:long}", Name = nameof(GetSnapshot))]
+    [ProducesResponseType<SnapshotDetailDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
+    public Task<SnapshotDetailDto> GetSnapshot(long id, [FromServices] GetSnapshot.Handler handler, CancellationToken ct)
+    {
+        return handler.Handle(id, ct);
+    }
+
+    [HttpGet("{id:long}/countries/{code}", Name = nameof(GetCountryBreakdown))]
+    [ProducesResponseType<CountryBreakdownDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
+    public Task<CountryBreakdownDto> GetCountryBreakdown(long id, string code, [FromServices] GetCountryBreakdown.Handler handler, CancellationToken ct)
+    {
+        return handler.Handle(id, code, ct);
     }
 }

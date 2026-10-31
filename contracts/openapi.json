@@ -538,6 +538,185 @@
             }
           }
         }
+      },
+      "get": {
+        "tags": [
+          "Snapshots"
+        ],
+        "operationId": "GetSnapshots",
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": { }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": { }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SnapshotSummaryDto"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/snapshots/{id}": {
+      "get": {
+        "tags": [
+          "Snapshots"
+        ],
+        "operationId": "GetSnapshot",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": { }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": { }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SnapshotDetailDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": { }
+            }
+          }
+        }
+      }
+    },
+    "/api/snapshots/{id}/countries/{code}": {
+      "get": {
+        "tags": [
+          "Snapshots"
+        ],
+        "operationId": "GetCountryBreakdown",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": { }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": { }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CountryBreakdownDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": { }
+            }
+          }
+        }
       }
     },
     "/api/imports": {
@@ -1291,6 +1470,82 @@
           "Superseded"
         ]
       },
+      "ContributionDto": {
+        "required": [
+          "voteId",
+          "voteRef",
+          "title",
+          "ballot",
+          "position",
+          "weight",
+          "counted",
+          "points",
+          "reason",
+          "sourceImportId",
+          "sourceFileName"
+        ],
+        "type": "object",
+        "properties": {
+          "voteId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "voteRef": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "ballot": {
+            "maxLength": 1,
+            "minLength": 1,
+            "type": "string",
+            "format": "char"
+          },
+          "position": {
+            "type": "string"
+          },
+          "weight": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "counted": {
+            "type": "boolean"
+          },
+          "points": {
+            "type": "number",
+            "format": "double"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "sourceImportId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sourceFileName": {
+            "type": "string"
+          }
+        }
+      },
+      "CountryBreakdownDto": {
+        "required": [
+          "score",
+          "contributions"
+        ],
+        "type": "object",
+        "properties": {
+          "score": {
+            "$ref": "#/components/schemas/SnapshotScoreDto"
+          },
+          "contributions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ContributionDto"
+            }
+          }
+        }
+      },
       "CountryVoteDto": {
         "required": [
           "countryCode",
@@ -1746,6 +2001,59 @@
           }
         }
       },
+      "PublicationDto": {
+        "required": [
+          "id",
+          "snapshotId",
+          "quarter",
+          "publishedByName",
+          "publishedAt",
+          "reason",
+          "withdrawnAt",
+          "supersededBy"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "snapshotId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "quarter": {
+            "type": "string"
+          },
+          "publishedByName": {
+            "type": "string"
+          },
+          "publishedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "reason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "withdrawnAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "supersededBy": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int64"
+          }
+        }
+      },
       "Request": {
         "type": "object",
         "properties": {
@@ -1788,6 +2096,178 @@
           "snapshotId": {
             "type": "integer",
             "format": "int64"
+          }
+        }
+      },
+      "SnapshotDetailDto": {
+        "required": [
+          "snapshot",
+          "error",
+          "rules",
+          "voteCount",
+          "pendingConflictsAtCreation",
+          "ranking",
+          "publications"
+        ],
+        "type": "object",
+        "properties": {
+          "snapshot": {
+            "$ref": "#/components/schemas/SnapshotSummaryDto"
+          },
+          "error": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "rules": {
+            "$ref": "#/components/schemas/SnapshotRules"
+          },
+          "voteCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pendingConflictsAtCreation": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "ranking": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SnapshotScoreDto"
+            }
+          },
+          "publications": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PublicationDto"
+            }
+          }
+        }
+      },
+      "SnapshotRules": {
+        "required": [
+          "abstentionFactor",
+          "minCountedVotes",
+          "excludedVotes"
+        ],
+        "type": "object",
+        "properties": {
+          "abstentionFactor": {
+            "type": "number",
+            "format": "double"
+          },
+          "minCountedVotes": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "excludedVotes": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        }
+      },
+      "SnapshotScoreDto": {
+        "required": [
+          "countryCode",
+          "countryName",
+          "score",
+          "rank",
+          "countedVotes",
+          "countedWeight",
+          "earnedWeight"
+        ],
+        "type": "object",
+        "properties": {
+          "countryCode": {
+            "type": "string"
+          },
+          "countryName": {
+            "type": "string"
+          },
+          "score": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "rank": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "countedVotes": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "countedWeight": {
+            "type": "number",
+            "format": "double"
+          },
+          "earnedWeight": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
+      "SnapshotStatus": {
+        "enum": [
+          "Pending",
+          "Running",
+          "Completed",
+          "Failed"
+        ]
+      },
+      "SnapshotSummaryDto": {
+        "required": [
+          "id",
+          "name",
+          "status",
+          "createdByName",
+          "createdAt",
+          "completedAt",
+          "publishedQuarter"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/SnapshotStatus"
+          },
+          "createdByName": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "completedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "publishedQuarter": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
