@@ -583,6 +583,79 @@
         }
       }
     },
+    "/api/snapshots/preview": {
+      "post": {
+        "tags": [
+          "Snapshots"
+        ],
+        "operationId": "PreviewSnapshot",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreviewSnapshotRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreviewSnapshotRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreviewSnapshotRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": { }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": { }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SnapshotPreviewDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              },
+              "application/json": { }
+            }
+          }
+        }
+      }
+    },
     "/api/snapshots/{id}": {
       "get": {
         "tags": [
@@ -631,6 +704,97 @@
                   "$ref": "#/components/schemas/SnapshotDetailDto"
                 }
               }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": { }
+            }
+          }
+        }
+      }
+    },
+    "/api/snapshots/{id}/votes": {
+      "get": {
+        "tags": [
+          "Snapshots"
+        ],
+        "operationId": "GetSnapshotVotes",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "Page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "PageSize",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": { }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": { }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagedResultOfSnapshotVoteDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              },
+              "application/json": { }
             }
           },
           "404": {
@@ -1701,6 +1865,13 @@
               "string"
             ]
           },
+          "excludeMissingPositions": {
+            "type": "boolean"
+          },
+          "minCountedVotes": {
+            "type": "integer",
+            "format": "int32"
+          },
           "from": {
             "type": [
               "null",
@@ -1740,13 +1911,6 @@
             "items": {
               "type": "string"
             }
-          },
-          "excludeMissingPositions": {
-            "type": "boolean"
-          },
-          "minCountedVotes": {
-            "type": "integer",
-            "format": "int32"
           }
         }
       },
@@ -2159,6 +2323,35 @@
           }
         }
       },
+      "PagedResultOfSnapshotVoteDto": {
+        "required": [
+          "items",
+          "page",
+          "pageSize",
+          "total"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SnapshotVoteDto"
+            }
+          },
+          "page": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pageSize": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "total": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
       "PagedResultOfVoteDto": {
         "required": [
           "items",
@@ -2185,6 +2378,59 @@
           "total": {
             "type": "integer",
             "format": "int32"
+          }
+        }
+      },
+      "PreviewSnapshotRequest": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pageSize": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "from": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "to": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "session": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "voteIds": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          "voteRefs": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            }
           }
         }
       },
@@ -2439,6 +2685,29 @@
           }
         }
       },
+      "SnapshotPreviewDto": {
+        "required": [
+          "votes",
+          "missingPositions",
+          "unknownVoteRefs"
+        ],
+        "type": "object",
+        "properties": {
+          "votes": {
+            "$ref": "#/components/schemas/PagedResultOfVoteDto"
+          },
+          "missingPositions": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "unknownVoteRefs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
       "SnapshotRules": {
         "required": [
           "abstentionFactor",
@@ -2559,6 +2828,51 @@
               "null",
               "string"
             ]
+          }
+        }
+      },
+      "SnapshotVoteDto": {
+        "required": [
+          "id",
+          "voteRef",
+          "session",
+          "voteDate",
+          "title",
+          "position",
+          "weight"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "voteRef": {
+            "type": "string"
+          },
+          "session": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "voteDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "title": {
+            "type": "string"
+          },
+          "position": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "weight": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
           }
         }
       },

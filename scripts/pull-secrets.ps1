@@ -10,6 +10,10 @@
     exists; otherwise its template value is kept. Names map as: __ to --, then
     _ to - (ConnectionStrings__Default becomes ConnectionStrings--Default).
 
+    Azure-Postgres-User and Azure-Postgres-Password, if the vault has them,
+    replace the login inside ConnectionStrings--Default. That secret still
+    supplies the server, database and SSL settings.
+
 .EXAMPLE
     ./scripts/pull-secrets.ps1 -VaultName dotnetcandidate9kv
 .EXAMPLE
@@ -24,12 +28,40 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+$databaseUserSecret = 'Azure-Postgres-User'
+$databasePasswordSecret = 'Azure-Postgres-Password'
+
+function Get-VaultSecret([string] $Name) {
+    $value = az keyvault secret show --vault-name $VaultName --name $Name --query value -o tsv
+    if ($LASTEXITCODE -ne 0) { throw "Can't read secret '$Name'." }
+    return $value
+}
+
+function Set-DatabaseLogin([string] $ConnectionString, [string] $User, [string] $Password) {
+    # The builder quotes a password containing ; or quotes. PowerShell hides its
+    # ConnectionString property, so the accessors are called directly.
+    $builder = [System.Data.Common.DbConnectionStringBuilder]::new()
+    $builder.set_ConnectionString($ConnectionString)
+    foreach ($keyword in 'Username', 'User Name', 'User Id', 'UserId', 'UID', 'Password', 'PWD', 'PSW') {
+        [void] $builder.Remove($keyword)
+    }
+    $builder['Username'] = $User
+    $builder['Password'] = $Password
+    return $builder.get_ConnectionString()
+}
+
 $root = Split-Path $PSScriptRoot -Parent
 $sourcePath = Join-Path $root $Source
 $outputPath = Join-Path $root $Output
 
 $vaultNames = az keyvault secret list --vault-name $VaultName --query '[].name' -o tsv
 if ($LASTEXITCODE -ne 0) { throw "Can't list secrets in '$VaultName'. Run az login and check your access." }
+
+$hasDatabaseUser = $vaultNames -contains $databaseUserSecret
+$hasDatabasePassword = $vaultNames -contains $databasePasswordSecret
+if ($hasDatabaseUser -ne $hasDatabasePassword) {
+    throw "The vault has only one of '$databaseUserSecret' and '$databasePasswordSecret'. Add both or neither."
+}
 
 $fromVault = 0
 $lines = foreach ($line in [IO.File]::ReadAllLines($sourcePath)) {
@@ -40,10 +72,18 @@ $lines = foreach ($line in [IO.File]::ReadAllLines($sourcePath)) {
     if ($vaultNames -notcontains $secretName) { $line; continue }
 
     $fromVault++
-    if ($DryRun) { Write-Host "vault: $key <- $secretName"; $line; continue }
+    $replacesLogin = $key -eq 'ConnectionStrings__Default' -and $hasDatabaseUser
+    if ($DryRun) {
+        Write-Host "vault: $key <- $secretName"
+        if ($replacesLogin) { Write-Host "vault: login in $key <- $databaseUserSecret, $databasePasswordSecret" }
+        $line
+        continue
+    }
 
-    $value = az keyvault secret show --vault-name $VaultName --name $secretName --query value -o tsv
-    if ($LASTEXITCODE -ne 0) { throw "Can't read secret '$secretName'." }
+    $value = Get-VaultSecret $secretName
+    if ($replacesLogin) {
+        $value = Set-DatabaseLogin $value (Get-VaultSecret $databaseUserSecret) (Get-VaultSecret $databasePasswordSecret)
+    }
 
     # Single quotes stop Compose expanding $ in passwords
     "$key='$($value -replace "'", "\'")'"

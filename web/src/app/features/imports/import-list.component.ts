@@ -1,14 +1,15 @@
 import { DatePipe } from '@angular/common';
-import { Component, DestroyRef, OnInit, inject, signal } from '@angular/core';
+import { Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { Router, RouterLink } from '@angular/router';
+import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { Api } from '../../core/api/api';
 import { getImports, uploadImport } from '../../core/api/functions';
 import { ImportDto } from '../../core/api/models';
-import { isPermanentFailure, poll } from '../../shared/poll';
+import { PollResult, isPermanentFailure, poll } from '../../shared/poll';
 import { errorMessage } from '../../shared/problem-details';
 import { StatusBadgeComponent } from '../../shared/status-badge.component';
+import { importProgress } from './import-progress';
 
 const maxFileBytes = 200_000_000;
 
@@ -24,10 +25,8 @@ const maxFileBytes = 200_000_000;
 
     <div class="filters">
       <input #file type="file" accept=".csv" hidden (change)="upload(file)" />
-      <button matButton="filled" [disabled]="uploading()" (click)="file.click()">
-        {{ uploading() ? 'Uploading…' : 'Upload CSV' }}
-      </button>
-      <span class="muted">Processing continues in the background.</span>
+      <button matButton="filled" (click)="file.click()">Upload CSV</button>
+      <span class="muted">{{ uploadStatus() }}</span>
     </div>
 
     <table class="grid">
@@ -43,7 +42,7 @@ const maxFileBytes = 200_000_000;
             <td>{{ item.uploadedByName }}</td>
             <td>{{ item.uploadedAt | date: 'yyyy-MM-dd HH:mm' }}</td>
             <td><app-status-badge [value]="item.status" /></td>
-            <td class="number">{{ item.processedRows }} / {{ item.totalRows ?? '…' }}</td>
+            <td class="number">{{ progressLabel(item) }}</td>
           </tr>
         } @empty {
           <tr><td colspan="5" class="empty">No imports yet.</td></tr>
@@ -54,27 +53,32 @@ const maxFileBytes = 200_000_000;
 })
 export class ImportListComponent implements OnInit {
   private readonly api = inject(Api);
-  private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
+  private sending = Promise.resolve();
 
   protected readonly imports = signal<ImportDto[]>([]);
-  protected readonly uploading = signal(false);
+  protected readonly uploading = signal(0);
   protected readonly error = signal<string | null>(null);
 
   /** Kept apart from error: the next good refresh clears this, but mustn't clear an upload's message. */
   protected readonly refreshError = signal<string | null>(null);
 
+  protected readonly uploadStatus = computed(() => {
+    const count = this.uploading();
+    if (count === 0) {
+      return 'Processing continues in the background.';
+    }
+    return count === 1 ? 'Uploading 1 file…' : `Uploading ${count} files…`;
+  });
+
+  protected progressLabel(item: ImportDto): string {
+    return importProgress(item).label;
+  }
+
   ngOnInit(): void {
     poll(() => this.api.invoke(getImports), (result) => isPermanentFailure(result.error), 2000)
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((result) => {
-        if (result.value) {
-          this.imports.set(result.value);
-          this.refreshError.set(null);
-        } else {
-          this.refreshError.set(errorMessage(result.error));
-        }
-      });
+      .subscribe((result) => this.show(result));
   }
 
   protected async upload(input: HTMLInputElement): Promise<void> {
@@ -91,14 +95,42 @@ export class ImportListComponent implements OnInit {
     }
 
     this.error.set(null);
-    this.uploading.set(true);
+    this.uploading.update((count) => count + 1);
+
+    // One at a time, in the order chosen: a revised file must not overtake its original
+    this.sending = this.sending.then(() => this.send(file));
+  }
+
+  /** Never rejects, or one failed upload would stop the ones queued behind it. */
+  private async send(file: File): Promise<void> {
     try {
-      const created = await this.api.invoke(uploadImport, { body: { file } });
-      await this.router.navigate(['/imports', created.importId]);
+      await this.api.invoke(uploadImport, { body: { file } });
     } catch (error) {
-      this.error.set(errorMessage(error));
+      // Several uploads can be queued, so the message has to say which one failed
+      this.error.set(`${file.name}: ${errorMessage(error)}`);
+      return;
     } finally {
-      this.uploading.set(false);
+      this.uploading.update((count) => count - 1);
+    }
+
+    await this.refresh();
+  }
+
+  /** Shows a finished upload's row now, rather than at the next poll. */
+  private async refresh(): Promise<void> {
+    try {
+      this.show({ value: await this.api.invoke(getImports) });
+    } catch (error) {
+      this.show({ error });
+    }
+  }
+
+  private show(result: PollResult<ImportDto[]>): void {
+    if (result.value) {
+      this.imports.set(result.value);
+      this.refreshError.set(null);
+    } else {
+      this.refreshError.set(errorMessage(result.error));
     }
   }
 }

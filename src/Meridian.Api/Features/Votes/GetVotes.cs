@@ -1,6 +1,5 @@
 using FluentValidation;
 using Meridian.Api.Shared.Data;
-using Meridian.Api.Shared.Data.Entities;
 using Meridian.Api.Shared.Paging;
 using Microsoft.EntityFrameworkCore;
 
@@ -29,21 +28,7 @@ public static class GetVotes
         {
             await validator.ValidateAndThrowAsync(request, ct);
 
-            IQueryable<VoteDto> votes = request.Apply(db.Votes.AsNoTracking())
-                .OrderByDescending(v => v.VoteDate)
-                .ThenBy(v => v.VoteRef)
-                .Select(v => new VoteDto
-                {
-                    Id = v.Id,
-                    VoteRef = v.VoteRef,
-                    Session = v.Session,
-                    VoteDate = v.VoteDate,
-                    Title = v.Title,
-                    Position = v.Position,
-                    Weight = v.Weight,
-                    MissingPosition = v.Position == null,
-                    OpenConflicts = db.Conflicts.Count(c => c.VoteId == v.Id && c.Status == ConflictStatus.Pending),
-                });
+            IQueryable<VoteDto> votes = VoteDto.Listing(db, request.Apply(db.Votes.AsNoTracking()));
 
             return await PagedResult<VoteDto>.From(votes, new PageRequest { Page = request.Page, PageSize = request.PageSize }, ct);
         }

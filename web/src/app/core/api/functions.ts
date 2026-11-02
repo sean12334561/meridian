@@ -19,8 +19,12 @@ export type { GetSnapshots$Params as GetSnapshots$Params } from './fn/snapshots/
 export { getSnapshots as getSnapshots } from './fn/snapshots/get-snapshots';
 export type { CreateSnapshot$Params as CreateSnapshot$Params } from './fn/snapshots/create-snapshot';
 export { createSnapshot as createSnapshot } from './fn/snapshots/create-snapshot';
+export type { PreviewSnapshot$Params as PreviewSnapshot$Params } from './fn/snapshots/preview-snapshot';
+export { previewSnapshot as previewSnapshot } from './fn/snapshots/preview-snapshot';
 export type { GetSnapshot$Params as GetSnapshot$Params } from './fn/snapshots/get-snapshot';
 export { getSnapshot as getSnapshot } from './fn/snapshots/get-snapshot';
+export type { GetSnapshotVotes$Params as GetSnapshotVotes$Params } from './fn/snapshots/get-snapshot-votes';
+export { getSnapshotVotes as getSnapshotVotes } from './fn/snapshots/get-snapshot-votes';
 export type { GetCountryBreakdown$Params as GetCountryBreakdown$Params } from './fn/snapshots/get-country-breakdown';
 export { getCountryBreakdown as getCountryBreakdown } from './fn/snapshots/get-country-breakdown';
 export type { PublishSnapshot$Params as PublishSnapshot$Params } from './fn/snapshots/publish-snapshot';

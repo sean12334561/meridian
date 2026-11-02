@@ -6,20 +6,23 @@ import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
+import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { Api } from '../../core/api/api';
-import { getSnapshot, publishSnapshot } from '../../core/api/functions';
-import { SnapshotDetailDto } from '../../core/api/models';
+import { getSnapshot, getSnapshotVotes, publishSnapshot } from '../../core/api/functions';
+import { PagedResultOfSnapshotVoteDto, SnapshotDetailDto } from '../../core/api/models';
 import { CurrentUserService } from '../../core/user/current-user.service';
 import { PollResult, isPermanentFailure, poll } from '../../shared/poll';
 import { Problem, applyServerErrors, errorMessage } from '../../shared/problem-details';
 import { StatusBadgeComponent } from '../../shared/status-badge.component';
 
+const votePageSize = 10;
+
 @Component({
   selector: 'app-snapshot-detail',
   imports: [
     DatePipe, DecimalPipe, ReactiveFormsModule, RouterLink, MatButtonModule, MatFormFieldModule,
-    MatInputModule, MatProgressBarModule, StatusBadgeComponent,
+    MatInputModule, MatPaginatorModule, MatProgressBarModule, StatusBadgeComponent,
   ],
   template: `
     <p><a routerLink="/snapshots">← Snapshots</a></p>
@@ -95,6 +98,38 @@ import { StatusBadgeComponent } from '../../shared/status-badge.component';
         </form>
       }
 
+      @if (votes(); as page) {
+        <h2>Votes</h2>
+        <p class="muted">With the position and weight this snapshot was calculated with.</p>
+        <table class="grid">
+          <thead>
+            <tr>
+              <th>Vote</th><th>Date</th><th class="number">Session</th><th>Title</th>
+              <th>Position</th><th class="number">Weight</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (vote of page.items; track vote.id) {
+              <tr>
+                <td><a [routerLink]="['/votes', vote.id]">{{ vote.voteRef }}</a></td>
+                <td>{{ vote.voteDate }}</td>
+                <td class="number">{{ vote.session }}</td>
+                <td>{{ vote.title }}</td>
+                <td>{{ vote.position ?? '–' }}</td>
+                <td class="number">{{ vote.weight ?? '–' }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+        <mat-paginator
+          [length]="page.total"
+          [pageSize]="votePageSize"
+          [pageIndex]="page.page - 1"
+          hidePageSize
+          (page)="selectVotePage($event)"
+        />
+      }
+
       @if (current.ranking.length > 0) {
         <h2>Ranking</h2>
         <table class="grid">
@@ -140,7 +175,9 @@ export class SnapshotDetailComponent implements OnInit {
     reason: new FormControl('', { nonNullable: true }),
   });
 
+  protected readonly votePageSize = votePageSize;
   protected readonly detail = signal<SnapshotDetailDto | null>(null);
+  protected readonly votes = signal<PagedResultOfSnapshotVoteDto | null>(null);
   protected readonly error = signal<string | null>(null);
   protected readonly publishing = signal(false);
   protected readonly running = computed(() => this.isRunning(this.detail()));
@@ -152,10 +189,17 @@ export class SnapshotDetailComponent implements OnInit {
         if (result.value) {
           this.detail.set(result.value);
           this.error.set(null);
+          if (result.value.snapshot.status === 'Completed') {
+            void this.loadVotes(1);
+          }
         } else {
           this.error.set(errorMessage(result.error));
         }
       });
+  }
+
+  protected selectVotePage(event: PageEvent): void {
+    void this.loadVotes(event.pageIndex + 1);
   }
 
   protected async submitPublish(): Promise<void> {
@@ -180,6 +224,14 @@ export class SnapshotDetailComponent implements OnInit {
       this.error.set(errorMessage(error));
     } finally {
       this.publishing.set(false);
+    }
+  }
+
+  private async loadVotes(page: number): Promise<void> {
+    try {
+      this.votes.set(await this.api.invoke(getSnapshotVotes, { id: Number(this.id()), Page: page, PageSize: votePageSize }));
+    } catch (error) {
+      this.error.set(errorMessage(error));
     }
   }
 

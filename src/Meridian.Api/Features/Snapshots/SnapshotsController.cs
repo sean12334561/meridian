@@ -1,4 +1,5 @@
 using Meridian.Api.Shared.Auth;
+using Meridian.Api.Shared.Paging;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -19,6 +20,14 @@ public class SnapshotsController : ControllerBase
         return AcceptedAtRoute(nameof(GetSnapshot), new { id = created.SnapshotId }, created);
     }
 
+    [HttpPost("preview", Name = nameof(PreviewSnapshot))]
+    [ProducesResponseType<SnapshotPreviewDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType<HttpValidationProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
+    public Task<SnapshotPreviewDto> PreviewSnapshot(PreviewSnapshot.Request request, [FromServices] PreviewSnapshot.Handler handler, CancellationToken ct)
+    {
+        return handler.Handle(request, ct);
+    }
+
     [HttpGet(Name = nameof(GetSnapshots))]
     [ProducesResponseType<List<SnapshotSummaryDto>>(StatusCodes.Status200OK)]
     public Task<List<SnapshotSummaryDto>> GetSnapshots([FromServices] GetSnapshots.Handler handler, CancellationToken ct)
@@ -32,6 +41,15 @@ public class SnapshotsController : ControllerBase
     public Task<SnapshotDetailDto> GetSnapshot(long id, [FromServices] GetSnapshot.Handler handler, CancellationToken ct)
     {
         return handler.Handle(id, ct);
+    }
+
+    [HttpGet("{id:long}/votes", Name = nameof(GetSnapshotVotes))]
+    [ProducesResponseType<PagedResult<SnapshotVoteDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<HttpValidationProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
+    public Task<PagedResult<SnapshotVoteDto>> GetSnapshotVotes(long id, [FromQuery] GetSnapshotVotes.Request request, [FromServices] GetSnapshotVotes.Handler handler, CancellationToken ct)
+    {
+        return handler.Handle(id, request, ct);
     }
 
     [HttpGet("{id:long}/countries/{code}", Name = nameof(GetCountryBreakdown))]

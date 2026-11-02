@@ -1,103 +1,53 @@
 # Decisions
 
-Rules the assignment left open and choices made in the design, with their reasoning. The design itself is in [docs/HLD.md](docs/HLD.md) and [docs/LLD.md](docs/LLD.md).
+## Storage and data
 
-## Scoring and ranking
+**Blob Storage or Cosmos DB.** Blob Storage is used for files, and PostgreSQL for structured records. Blob Storage is designed for unstructured text and binary objects, such as uploaded CSVs and PDFs. Cosmos DB would add a second database without a clear benefit here.
 
-### Abstention counts as half a match; absent is not counted
+**Membership overlap check in code, not in the database.** Postgres can enforce non-overlapping membership periods with an exclusion constraint, but that requires the `btree_gist` extension, which can't be enabled on the provided Azure server. The risk is low because membership is static seed data.
 
-Score = 100 x (sum of matched weights + 0.5 x sum of abstention weights) / (sum of weights where ballot is Y, N or A).
-
-**Why:** TODO
-
-### Minimum counted votes is a snapshot setting, default 1
-
-The counted-vote number is shown with every score. Countries below the minimum show "insufficient data" and get no rank.
-
-**Why:** TODO
-
-### Ties share a rank
-
-`RANK()` over unrounded scores, so 1, 2, 2, 4.
-
-**Why:** TODO
-
-## Imports
-
-### Already-decided values don't reopen conflicts
-
-A value already rejected, or replaced by an accepted decision, is reported as `PreviouslyDecided` and opens no conflict, unless the row's `published_at` is newer than the publication the decision was based on.
-
-**Why:** TODO
-
-### Normalize only trim and uppercase country code
-
-Both are flagged in the report with the original value. Everything else invalid is rejected with a reason.
-
-**Why:** TODO
-
-### Membership dates are inclusive on both ends
-
-**Why:** TODO
-
-### Membership overlaps are checked in code
-
-**Why:** `btree_gist` can't be enabled on the Azure server, so an exclusion constraint isn't available.
-
-## Snapshots
-
-### A second publication for a quarter supersedes the first
-
-The earlier publication gets `withdrawn_at` and `superseded_by`; both snapshots stay viewable.
-
-**Why:** TODO
+**Indexes.** Unique indexes are used to enforce rules. Otherwise, only big tables that are searched by a narrow filter are indexed.
 
 ## Infrastructure
 
-### Background jobs use a Postgres table, not Service Bus
+**Background jobs in a PostgreSQL queue.** Background imports and snapshot calculations use a durable PostgreSQL job queue processed by a background worker. This reuses required infrastructure and keeps job creation transactional with application records. Azure Service Bus was unavailable in the supplied environment. Jobs retain progress, bounded retries and recovery information. For production, we would evaluate Service Bus when workload bursts or independently scaled workers justify a dedicated broker.
 
-`FOR UPDATE SKIP LOCKED`, lease and heartbeat, 3 attempts with backoff.
+**Claim-check.** For the workers, I went with the claim-check pattern: the file is saved to Azure Blob Storage on import, and the worker reads the file when the job starts running.
 
-**Why:** Service Bus wasn't provided, and the Postgres queue is sufficient.
+**Runtime topology: modular monolith, not microservices.** Why not microservices: all features share one transactional model. Splitting into services would mean a database per service, messaging between them, and eventual consistency, which adds risk to the system's main guarantee (approved data is never silently changed) for no benefit at this size.
 
-### The worker is its own container, from the same image as the API
+**Separate worker container, not a worker inside the API.**
+- The worker can be scaled independently of the API with `--scale worker=N`.
+- Restarting the API doesn't interrupt running jobs.
+- It matches how it would run in Azure if decided in production (a Container Apps worker).
 
-**Why:** TODO
+**Secrets.** Secrets are stored in Key Vault and loaded before the run through the Azure CLI, using the developer's own identity, because the containers can't use interactive login and I don't have permission to assign roles to a service principal. The script writes the secrets into the git-ignored `.env`, so they sit in plain text on the developer's machine. In production, I'd use a managed identity with the Key Vault configuration provider.
 
-### Azure storage is reached through a container SAS URL
+## Concurrency
 
-`Storage__ContainerSasUrl` takes priority when set; `Storage__ConnectionString` remains for Azurite.
+**Concurrent decisions.** A decision is a conditional update `WHERE status = 'Pending'`, so if two analysts decide the same conflict, only the first one applies. The second gets a 409 with the current state, and a `DecisionNotApplied` history row records the attempt. Import batches and decisions take the same advisory lock, so a decision can never interleave with an import changing the same approved data. The cost is that a decision may wait for the running batch to finish.
 
-**Why:** The author has no permission to get a connection string for the storage account.
+**Import order not guaranteed.** The worker runs two jobs at once (`Worker__Concurrency=2`), so files uploaded back to back can apply in either order. If a revised file overtakes its original, the same conflicts open with the two sides swapped. Approved data still never changes without a decision, and each conflict shows both publication dates, so I accepted this instead of forcing imports to run one at a time.
 
-### Key Vault is read by a script before startup, not by the app
+## Security
 
-`scripts/pull-secrets.ps1` uses the operator's `az login` to build the git-ignored `.env` from `.env.example` and the vault. The app only ever sees environment variables.
+**Header auth.** Authentication is an `X-User-Id` header with three demo users and a user switcher in the UI. This is a deliberate simplification, since production auth was out of scope, and anyone who can reach the API can fake the header. The `Analyst` and `Admin` policies are enforced on the API, and the acting user always comes from the authenticated principal, never from the request body.
 
-**Why:** Containers can't use `az login`, and a service principal isn't possible because the author can't assign it a role. Trade-off: secrets sit in plain text in `.env` on the local machine. In production: managed identity, read directly by the app.
+## Domain rules
 
-### Cosmos DB not used
+- **Normalization.** The only automatic fixes are trimming whitespace and upper-casing the country code, and both are flagged in the import report with the original value. Anything else invalid is rejected with a reason rather than guessed.
+- **Abstentions** are counted as half a match. Score = 100 x (sum of matched weights + 0.5 x sum of abstention weights) / (sum of weights where ballot is Y, N or A).
+- **Minimum counted votes.** For snapshots, the minimum number of counted votes defaults to 1, so a score is calculated, and the number of votes is shown for context. Countries below the minimum show "insufficient data" and get no rank.
+- **Re-upload after a decision.** If a value that was already rejected, or that was replaced by an accepted decision, arrives again, it is marked as previously decided and no new conflict is opened, unless the incoming row's `published_at` is newer.
+- **Second snapshot for the same quarter.** It never overwrites the first, and everything stays traceable. The earlier snapshot stays fully viewable and is labelled. Publishing a second one in the same quarter requires a reason.
+- **Membership dates.** `member_from` and `member_to` are inclusive.
 
-**Why:** The data is relational and transactional.
+## History and traceability
 
-## Deviations from the LLD
+- Approved data is kept as current values in `votes` and `country_votes`, each recording the import it came from.
+- Every change goes through one `HistoryWriter` that writes a `vote_history` row (target, old → new, actor, import, conflict) in the same transaction, so no value changes without a trace.
+- Conflicts copy the approved value and its source when detected, so both sides keep their origin after a decision.
+- Every file is kept in Blob Storage, and every row's outcome in `import_rows`.
+- Snapshots copy their inputs (ballot, position, weight, source file) and are never modified, so a published index can be reproduced exactly.
 
-| Area | LLD says | Implemented | Why |
-| --- | --- | --- | --- |
-| `Storage__ConnectionString` | `UseDevelopmentStorage=true` for Azurite | That value from the host; inside containers, a full connection string with `BlobEndpoint=http://azurite:10000/devstoreaccount1` | `UseDevelopmentStorage=true` resolves to `127.0.0.1`, which inside the `api` and `worker` containers is the container itself |
-| Azure storage access | Azure Blob connection string | `Storage__ContainerSasUrl`, a container SAS URL | No permission to get a connection string. The container must already exist, because a container SAS can't create it |
-| Key Vault | Not used (HLD, `CLAUDE.md`) | Optional source for `.env`, through `scripts/pull-secrets.ps1` | Author wants settings kept in Key Vault; no service principal is available, so the app can't read it directly |
-| Health endpoint | Not in the API surface | Unauthenticated `GET /health`, outside `/api` so nginx doesn't expose it | Gives Compose a readiness check for `api` and an end-to-end smoke test |
-| Foreign key indexes | Not mentioned | EF's automatic foreign key indexes are turned off; only the indexes in the HLD exist | The HLD adds indexes only when `EXPLAIN ANALYZE` shows a need, and extra ones would slow the bulk inserts |
-| `votes.position` | CHECK constraints named for ballots and weights only | Added `ck_position` (null, `Y` or `N`) | Same protection for the other scoring input |
-| CSV columns | Uses `vote_ref` and `title`; lists 7 of the 8 columns | The file header is `assembly_vote_id,session,vote_date,resolution_title,country_code,country_name,ballot,published_at`. `assembly_vote_id` maps to `vote_ref`, `resolution_title` to `title`. `country_name` is kept on `import_rows` only | The LLD's names are the domain's; the file's names stay at the parsing boundary. Approved data gets country names from `member_states` |
-| C# style | Code samples use `var`, `sealed` and `record` | Explicit types and plain `public class` everywhere. DTOs and requests are classes with `required` `init` properties | Author's preference |
-| `country_code` columns | Tables reference a country | No foreign key to `member_states` | Its key is `(country_code, member_from)` because Iceland has two periods, so `country_code` alone isn't unique. Import validation checks the code |
-| CsvHelper version | Not specified | Pinned to 33.1.0 | 34.0.0 replaces the API with a source-generated one and removes `ClassMap`. 33.x is stable and also covers the import step's streaming parse |
-| 409 and other extension fields | `extensions.current`, `extensions.missingPositions` | Top-level JSON members: `current`, `missingPositions`, `correlationId` | RFC 9457 puts extension members at the top level of the object, and that's how ASP.NET Core serializes `ProblemDetails.Extensions`. The C# side still uses `Extensions` |
-| Bodyless errors | Not mentioned | `UseStatusCodePages()` in the pipeline | The assignment asks for one error format across the API, and 401, 403 and unknown routes otherwise return an empty body |
-| Supplied `X-Correlation-ID` | Accepted as given | Accepted only if 1 to 64 letters, digits, `-`, `_` or `.`; otherwise replaced | The client's value goes into logs and job payloads, so it must not be able to inject content |
-| `GET /api/users` | Role "Any" | Anonymous | The UI needs the list to fill the switcher before anyone is picked. It exposes only names and roles of three demo users. `GET /api/me` needs a user |
-| Users slice files | Only `UsersController.cs` | Also `GetUsers.cs`, `GetMe.cs`, `UserDto.cs` | Keeps the rule that controllers only map HTTP to a handler |
-| JSON | Not mentioned | Enums as strings, strict numbers, for controllers and for the OpenAPI document | The contract generates the Angular client, so it must match what's on the wire. Without this, roles were documented as integers and every number as `integer | string`. Strict numbers also mean `"5"` is rejected where a number is expected |
-| API image | Not specified | The final image also installs `libgssapi-krb5-2` | Npgsql looks for this library on connect, and without it every run logs an error even though the connection works |
+I chose this over full version tables (`valid_from`/`valid_to`) because it keeps reads simple, and the questions the institute asks are answered by the history log and the snapshot copies.

@@ -3,6 +3,7 @@ import { Component, DestroyRef, OnInit, computed, inject, input, signal } from '
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
+import { MatButtonModule } from '@angular/material/button';
 import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatSelectModule } from '@angular/material/select';
@@ -12,12 +13,17 @@ import { ImportDto, ImportReportDto, PagedResultOfImportRowDto, RowOutcome } fro
 import { PollResult, isPermanentFailure, poll } from '../../shared/poll';
 import { errorMessage } from '../../shared/problem-details';
 import { StatusBadgeComponent } from '../../shared/status-badge.component';
+import { importProgress } from './import-progress';
+import { parseNormalizations } from './normalizations';
 
 const flagged: RowOutcome[] = ['Invalid', 'Duplicate', 'Contradiction', 'Conflict', 'PreviouslyDecided'];
 
 @Component({
   selector: 'app-import-report',
-  imports: [DatePipe, FormsModule, RouterLink, MatPaginatorModule, MatProgressBarModule, MatSelectModule, StatusBadgeComponent],
+  imports: [
+    DatePipe, FormsModule, RouterLink, MatButtonModule, MatPaginatorModule,
+    MatProgressBarModule, MatSelectModule, StatusBadgeComponent,
+  ],
   template: `
     <p><a routerLink="/imports">← Imports</a></p>
 
@@ -37,10 +43,10 @@ const flagged: RowOutcome[] = ['Invalid', 'Duplicate', 'Contradiction', 'Conflic
       }
 
       @if (running()) {
-        <p>{{ current.phase }}: {{ current.processedRows }} of {{ current.totalRows ?? '…' }} rows</p>
+        <p>{{ progress()?.label }}</p>
         <mat-progress-bar
-          [mode]="current.totalRows ? 'determinate' : 'indeterminate'"
-          [value]="percent()"
+          [mode]="progress()?.percent === null ? 'indeterminate' : 'determinate'"
+          [value]="progress()?.percent ?? 0"
         />
       }
     }
@@ -51,6 +57,14 @@ const flagged: RowOutcome[] = ['Invalid', 'Duplicate', 'Contradiction', 'Conflic
           This file is identical to
           <a [routerLink]="['/imports', earlier.importId]">{{ earlier.fileName }}</a>,
           uploaded {{ earlier.uploadedAt | date: 'yyyy-MM-dd HH:mm' }}.
+        </div>
+      }
+
+      @if (result.totals.normalized > 0) {
+        <div class="banner info">
+          {{ result.totals.normalized }} {{ result.totals.normalized === 1 ? 'row was' : 'rows were' }} normalized:
+          surrounding spaces trimmed or the country code uppercased. The original values are kept.
+          <button matButton type="button" (click)="selectOutcome('flagged')">Show normalized rows</button>
         </div>
       }
 
@@ -88,8 +102,8 @@ const flagged: RowOutcome[] = ['Invalid', 'Duplicate', 'Contradiction', 'Conflic
                 @if (row.conflictId) {
                   <a [routerLink]="['/review', row.conflictId]">Open conflict</a>
                 }
-                @if (row.normalizations) {
-                  <div class="mono">{{ row.normalizations }}</div>
+                @for (change of parseNormalizations(row.normalizations); track $index) {
+                  <div class="mono change">{{ change.field }}: "{{ change.original }}" → "{{ change.value }}"</div>
                 }
               </td>
               <td class="mono">{{ row.rawText }}</td>
@@ -134,6 +148,7 @@ const flagged: RowOutcome[] = ['Invalid', 'Duplicate', 'Contradiction', 'Conflic
     .totals div { display: flex; flex-direction: column; }
     .totals strong { font-size: 1.3rem; font-weight: 500; }
     .outcome { width: 14rem; }
+    .change { white-space: pre-wrap; }
   `,
 })
 export class ImportReportComponent implements OnInit {
@@ -143,6 +158,7 @@ export class ImportReportComponent implements OnInit {
   readonly id = input.required<string>();
 
   protected readonly outcomes: RowOutcome[] = flagged;
+  protected readonly parseNormalizations = parseNormalizations;
   protected readonly pageSize = 50;
   protected readonly item = signal<ImportDto | null>(null);
   protected readonly report = signal<ImportReportDto | null>(null);
@@ -157,9 +173,9 @@ export class ImportReportComponent implements OnInit {
     return status === 'Pending' || status === 'Running';
   });
 
-  protected readonly percent = computed(() => {
+  protected readonly progress = computed(() => {
     const item = this.item();
-    return item?.totalRows ? (100 * item.processedRows) / item.totalRows : 0;
+    return item ? importProgress(item) : null;
   });
 
   protected readonly totals = computed(() => {

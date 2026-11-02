@@ -15,17 +15,9 @@ public static class CreateSnapshot
 {
     private const decimal AbstentionFactor = 0.5m;
 
-    public class Request
+    public class Request : SnapshotSelection
     {
         public string? Name { get; init; }
-        public DateOnly? From { get; init; }
-        public DateOnly? To { get; init; }
-        public int? Session { get; init; }
-        public long[]? VoteIds { get; init; }
-
-        /// <summary>Assembly references such as MA/2024/117, the identifier people see.</summary>
-        public string[]? VoteRefs { get; init; }
-
         public bool ExcludeMissingPositions { get; init; }
         public int MinCountedVotes { get; init; } = 1;
     }
@@ -36,11 +28,7 @@ public static class CreateSnapshot
         {
             RuleFor(r => r.Name).NotEmpty().MaximumLength(200);
             RuleFor(r => r.MinCountedVotes).GreaterThanOrEqualTo(1);
-            RuleFor(r => r.To).GreaterThanOrEqualTo(r => r.From).When(r => r.From is not null && r.To is not null);
-            RuleFor(r => r.VoteRefs)
-                .Must((request, _) => request.From is not null || request.To is not null || request.Session is not null
-                                      || request.VoteIds is { Length: > 0 } || request.VoteRefs is { Length: > 0 })
-                .WithMessage("Choose a date range, a session or a list of votes.");
+            Include(new SnapshotSelectionValidator());
         }
     }
 
@@ -106,21 +94,12 @@ public static class CreateSnapshot
             return new SnapshotCreatedDto { SnapshotId = snapshot.Id };
         }
 
-        /// <summary>The filter's votes plus the listed ones: a list can add votes the filter misses.</summary>
         private async Task<List<SelectedVote>> SelectVotesAsync(Request request, CancellationToken ct)
         {
-            bool hasFilter = request.From is not null || request.To is not null || request.Session is not null;
             long[] listed = request.VoteIds ?? [];
             string[] listedRefs = request.VoteRefs ?? [];
 
-            List<SelectedVote> selected = await db.Votes
-                .AsNoTracking()
-                .Where(v => listed.Contains(v.Id)
-                            || listedRefs.Contains(v.VoteRef)
-                            || (hasFilter
-                                && (request.From == null || v.VoteDate >= request.From)
-                                && (request.To == null || v.VoteDate <= request.To)
-                                && (request.Session == null || v.Session == request.Session)))
+            List<SelectedVote> selected = await request.Apply(db.Votes.AsNoTracking())
                 .Select(v => new SelectedVote { Id = v.Id, VoteRef = v.VoteRef, HasPosition = v.Position != null })
                 .ToListAsync(ct);
 
