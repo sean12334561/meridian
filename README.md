@@ -150,13 +150,15 @@ The UI's user switcher picks who you are; the API receives it as the `X-User-Id`
 
 ## Tests
 
-Requires the .NET 10 SDK, Node.js and Docker.
+Requires the .NET 10 SDK, Node.js and Docker. Run these one line at a time, starting from the root folder:
 
 ```
 dotnet test
 cd web
-npm install
-npm test
+npm.cmd install
+npm.cmd test
 ```
+
+Use `npm.cmd`, not `npm`, in Windows PowerShell. `npm` runs `npm.ps1`, which Windows blocks by default with `running scripts is disabled on this system`, and `npm.cmd` is the same command without that restriction. On macOS or Linux, use `npm install` and `npm test`.
 
 Integration tests start a throwaway PostgreSQL through Testcontainers, so Docker must be running. They never touch the Azure database.
