@@ -91,8 +91,15 @@ import { StatusBadgeComponent } from '../../shared/status-badge.component';
   `,
   styles: `
     .sides { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem; }
-    .sides section { border: 1px solid #e3e3e8; border-radius: 6px; padding: 0 1rem; }
-    .value { font-size: 1.4rem; margin: 0.25rem 0; word-break: break-word; }
+    .sides section {
+      background: var(--color-bg);
+      border: 1px solid var(--color-border);
+      border-top: 4px solid var(--color-success);
+      border-radius: 10px;
+      padding: 0 1.1rem 0.25rem;
+    }
+    .sides section + section { border-top-color: var(--color-accent); }
+    .value { font-family: Georgia, "Times New Roman", serif; font-size: 1.5rem; margin: 0.25rem 0; word-break: break-word; }
     .note { width: 100%; }
   `,
 })

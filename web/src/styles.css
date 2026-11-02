@@ -1,41 +1,159 @@
+/* Palette */
+:root {
+  --color-bg:            #FBF6EE;
+  --color-surface:       #F1E4D3;
+  --color-primary:       #C8553D;
+  --color-primary-hover: #9C3D2A;
+  --color-accent:        #E9A23B;
+  --color-success:       #6B7F4E;
+  --color-text:          #3B2A22;
+  --color-text-muted:    #7A6558;
+
+  /* Derived shades used by cards, borders and banners */
+  --color-card:          #FFFDF9;
+  --color-border:        #E6D6C2;
+  --color-border-strong: #CDB79F;
+  --color-primary-soft:  #F6DCD3;
+  --color-accent-soft:   #FBEBCF;
+  --color-success-soft:  #E3E9D6;
+  --color-danger:        #A3271C;
+  --color-danger-soft:   #F8DCD6;
+  --shadow-card: 0 1px 2px rgba(59, 42, 34, 0.06), 0 4px 14px rgba(59, 42, 34, 0.06);
+  --radius: 10px;
+}
+
+/* Angular Material colours, mapped to the palette. The prebuilt theme in
+   angular.json sets the same variables on html; this file loads after it. */
+html {
+  --mat-sys-primary: var(--color-primary);
+  --mat-sys-on-primary: #FFFFFF;
+  --mat-sys-primary-container: var(--color-primary-soft);
+  --mat-sys-on-primary-container: #5A2216;
+  --mat-sys-inverse-primary: #F0A895;
+  --mat-sys-surface-tint: var(--color-primary);
+
+  --mat-sys-secondary: var(--color-text-muted);
+  --mat-sys-on-secondary: #FFFFFF;
+  --mat-sys-secondary-container: var(--color-surface);
+  --mat-sys-on-secondary-container: var(--color-text);
+
+  --mat-sys-tertiary: var(--color-success);
+  --mat-sys-on-tertiary: #FFFFFF;
+  --mat-sys-tertiary-container: var(--color-success-soft);
+  --mat-sys-on-tertiary-container: #2F3A20;
+
+  --mat-sys-error: var(--color-danger);
+  --mat-sys-on-error: #FFFFFF;
+  --mat-sys-error-container: var(--color-danger-soft);
+  --mat-sys-on-error-container: #5C130C;
+
+  --mat-sys-background: var(--color-bg);
+  --mat-sys-on-background: var(--color-text);
+  --mat-sys-surface: var(--color-card);
+  --mat-sys-on-surface: var(--color-text);
+  --mat-sys-surface-variant: var(--color-surface);
+  --mat-sys-on-surface-variant: var(--color-text-muted);
+  --mat-sys-surface-bright: var(--color-card);
+  --mat-sys-surface-dim: #E9DCCB;
+  --mat-sys-surface-container-lowest: #FFFFFF;
+  --mat-sys-surface-container-low: var(--color-card);
+  --mat-sys-surface-container: #F8F0E5;
+  --mat-sys-surface-container-high: #F5EADC;
+  --mat-sys-surface-container-highest: var(--color-surface);
+  --mat-sys-outline: var(--color-border-strong);
+  --mat-sys-outline-variant: var(--color-border);
+  --mat-sys-inverse-surface: var(--color-text);
+  --mat-sys-inverse-on-surface: var(--color-bg);
+}
+
 html, body {
   height: 100%;
 }
 
 body {
   margin: 0;
-  font-family: Roboto, "Helvetica Neue", Arial, sans-serif;
-  color: #1b1b1f;
+  font-family: "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  color: var(--color-text);
+  background: var(--color-bg);
+  -webkit-font-smoothing: antialiased;
 }
 
-h1 { font-size: 1.5rem; font-weight: 500; margin: 0 0 1rem; }
-h2 { font-size: 1.1rem; font-weight: 500; margin: 1.5rem 0 0.5rem; }
+::selection { background: var(--color-accent-soft); }
 
+h1, h2, h3 {
+  font-family: Georgia, "Times New Roman", serif;
+  color: var(--color-text);
+  letter-spacing: 0.01em;
+}
+h1 { font-size: 1.75rem; font-weight: 600; margin: 0 0 1.25rem; }
+h2 { font-size: 1.2rem; font-weight: 600; margin: 2rem 0 0.75rem; }
+h3 { font-size: 1.05rem; font-weight: 600; }
+
+/* A short accent rule under each page title */
+h1::after {
+  content: "";
+  display: block;
+  width: 3rem;
+  height: 3px;
+  margin-top: 0.5rem;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--color-primary), var(--color-accent));
+}
+
+a { color: var(--color-primary-hover); text-decoration-color: rgba(156, 61, 42, 0.35); text-underline-offset: 2px; }
+a:hover { color: var(--color-primary); text-decoration-color: currentColor; }
+
+/* Tables: a card with a tinted header and row hover */
 table.grid {
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   width: 100%;
   font-size: 0.9rem;
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
 }
 
 table.grid th {
   text-align: left;
-  font-weight: 500;
-  color: #44464f;
+  font-weight: 600;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+  background: var(--color-surface);
 }
 
 table.grid th, table.grid td {
-  padding: 0.4rem 0.6rem;
-  border-bottom: 1px solid #e3e3e8;
+  padding: 0.6rem 0.8rem;
+  border-bottom: 1px solid var(--color-border);
   vertical-align: top;
 }
 
-table.grid td.number, table.grid th.number { text-align: right; }
+table.grid tbody tr:last-child td { border-bottom: none; }
+table.grid tbody tr { transition: background-color 120ms ease; }
+table.grid tbody tr:hover td { background: #FCF4EA; }
 
-.filters { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; margin-bottom: 0.75rem; }
-.muted { color: #5f6168; font-size: 0.85rem; }
-.empty { color: #5f6168; padding: 1rem 0; }
-.banner { padding: 0.6rem 0.9rem; border-radius: 4px; margin-bottom: 1rem; }
-.banner.error { background: #fadcdc; color: #8c1d18; }
-.banner.info { background: #fdecc8; color: #6d4a00; }
-.banner.ok { background: #dcefe0; color: #1c5a2c; }
+table.grid td.number, table.grid th.number { text-align: right; font-variant-numeric: tabular-nums; }
+
+.filters { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; margin-bottom: 1rem; }
+.muted { color: var(--color-text-muted); font-size: 0.85rem; }
+.empty { color: var(--color-text-muted); padding: 1.5rem 0; text-align: center; font-style: italic; }
+
+.banner {
+  padding: 0.7rem 1rem;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+  border-left: 4px solid transparent;
+}
+.banner.error { background: var(--color-danger-soft); color: #5C130C; border-left-color: var(--color-danger); }
+.banner.info { background: var(--color-accent-soft); color: #6A4510; border-left-color: var(--color-accent); }
+.banner.ok { background: var(--color-success-soft); color: #2F3A20; border-left-color: var(--color-success); }
+
 .mono { font-family: Consolas, Menlo, monospace; font-size: 0.8rem; word-break: break-all; }
+
+/* Material tweaks that only change looks */
+.mat-mdc-paginator { background: transparent; }
+.mat-mdc-progress-bar { border-radius: 2px; }

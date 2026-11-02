@@ -144,9 +144,24 @@ const flagged: RowOutcome[] = ['Invalid', 'Duplicate', 'Contradiction', 'Conflic
     }
   `,
   styles: `
-    .totals { display: flex; flex-wrap: wrap; gap: 1.5rem; }
-    .totals div { display: flex; flex-direction: column; }
-    .totals strong { font-size: 1.3rem; font-weight: 500; }
+    .totals { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 1rem; }
+    .totals div {
+      display: flex;
+      flex-direction: column;
+      min-width: 6.5rem;
+      padding: 0.7rem 1rem;
+      background: var(--color-bg);
+      border: 1px solid var(--color-border);
+      border-left: 4px solid var(--color-accent);
+      border-radius: 8px;
+    }
+    .totals strong {
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: 1.5rem;
+      font-weight: 600;
+      color: var(--color-text);
+      font-variant-numeric: tabular-nums;
+    }
     .outcome { width: 14rem; }
     .change { white-space: pre-wrap; }
   `,

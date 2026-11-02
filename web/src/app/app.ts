@@ -30,13 +30,56 @@ import { errorMessage } from './shared/problem-details';
     </main>
   `,
   styles: `
-    .bar { gap: 1.5rem; }
-    .brand { font-weight: 600; }
+    .bar {
+      gap: 1.5rem;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      --mat-toolbar-container-background-color: var(--color-text);
+      --mat-toolbar-container-text-color: var(--color-bg);
+      box-shadow: 0 2px 10px rgba(59, 42, 34, 0.18);
+      border-bottom: 3px solid var(--color-primary);
+    }
+    .brand {
+      font-family: Georgia, "Times New Roman", serif;
+      font-weight: 600;
+      font-size: 1.3rem;
+      letter-spacing: 0.02em;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .brand::before {
+      content: "";
+      width: 0.7rem;
+      height: 0.7rem;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--color-accent), var(--color-primary));
+      box-shadow: 0 0 0 3px rgba(233, 162, 59, 0.25);
+    }
     .grow { flex: 1; }
-    nav { display: flex; gap: 1rem; font-size: 0.95rem; }
-    nav a { color: inherit; text-decoration: none; padding: 0.25rem 0.5rem; border-radius: 4px; }
-    nav a.active { background: rgba(0, 0, 0, 0.08); }
-    main { max-width: 1100px; margin: 1.5rem auto; padding: 0 1rem; }
+    nav { display: flex; gap: 0.25rem; font-size: 0.95rem; }
+    nav a {
+      color: rgba(251, 246, 238, 0.78);
+      text-decoration: none;
+      padding: 0.35rem 0.8rem;
+      border-radius: 999px;
+      transition: background-color 120ms ease, color 120ms ease;
+    }
+    nav a:hover { color: var(--color-bg); background: rgba(251, 246, 238, 0.1); }
+    nav a.active { color: #FFFFFF; background: var(--color-primary); }
+    main {
+      max-width: 1100px;
+      margin: 2rem auto 3rem;
+      padding: 2rem 2.25rem;
+      background: var(--color-card);
+      border: 1px solid var(--color-border);
+      border-radius: 14px;
+      box-shadow: var(--shadow-card);
+    }
+    @media (max-width: 1160px) {
+      main { margin: 1rem; padding: 1.25rem; }
+    }
   `,
 })
 export class App implements OnInit {

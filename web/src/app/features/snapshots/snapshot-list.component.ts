@@ -166,7 +166,7 @@ interface MissingPosition {
     .short { width: 9rem; }
     .date { width: 10rem; }
     .wide { width: 100%; }
-    .no-position { color: #8c1d18; }
+    .no-position { color: var(--color-danger); }
   `,
 })
 export class SnapshotListComponent implements OnInit {
