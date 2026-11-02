@@ -20,6 +20,18 @@ Docker Compose runs both versions. The only difference is what's in `.env`, so r
 
 In both, the system runs on your machine at http://localhost:8080. The `migrator` container applies migrations and seeds the users and `data/member_states.csv`, then exits. That's expected, and it's safe to run again because it only adds rows that are missing.
 
+### Before you start: where to run the commands
+
+All commands below are PowerShell, run from the repository's root folder (the one with `docker-compose.yml`). Any of these works:
+
+- **A terminal.** Open PowerShell or Windows Terminal and `cd` to the repository folder.
+- **VS Code.** Open the repository folder, then **Terminal > New Terminal**. It opens in the root folder, in PowerShell by default on Windows.
+- **Visual Studio.** Open `meridian.slnx`, then **View > Terminal**. It opens a Developer PowerShell in the solution's folder, which is the root folder.
+
+On macOS or Linux, install [PowerShell 7](https://learn.microsoft.com/powershell/scripting/install/installing-powershell) and run the script with `pwsh -File scripts/pull-secrets.ps1 ...` instead of `powershell -ExecutionPolicy Bypass -File ...`.
+
+Docker Desktop must be running before any `docker compose` command.
+
 ### Run locally
 
 Requires Docker with Compose. Ports 8080, 5432 and 10000 must be free.
@@ -31,48 +43,80 @@ docker compose up --build
 
 Open http://localhost:8080, pick a user, and upload a CSV from the Imports screen. The vote files aren't in this repo: use the ones supplied with the assignment in `candidate_data`.
 
-To stop, run `docker compose down`. Add `-v` to delete the local data as well.
+To stop, press Ctrl+C, then run `docker compose down`. Add `-v` to delete the local data as well.
+
+**If `migrator` fails with `password authentication failed for user "meridian"`.** The local database keeps the password it was created with, in a Docker volume, and ignores later changes to `.env`. This happens when the volume was created earlier with a different password. Delete the local data and start again:
+
+```
+docker compose down -v
+docker compose up --build
+```
+
+If it still fails, check that no other PostgreSQL is running on port 5432, such as one installed directly on Windows.
 
 ### Run with Azure
 
 You need:
 
-- The [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli), signed in with `az login`, with permission to read the vault's secrets.
-- Access to the PostgreSQL server from your IP address.
-- A blob container that already exists, because a container SAS can't create one (The container already exists). Its SAS needs read, add, create, write and list, and must not expire during the run (Valid SAS is pulled from KV).
+- The [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli). The script calls it to read the vault, so it must be installed even if you never use it yourself. After installing, open a new terminal and check it with `az version`.
+- An Azure account with permission to read the secrets in the `dotnetcandidate9kv` Key Vault.
+- Access to the PostgreSQL server from your IP address, through the server's firewall rules.
 
-The vault holds these secrets:
+The vault already holds a valid SAS for an existing blob container, and the database is already set up.
 
-| Secret | Setting | Required |
-| --- | --- | --- |
-| `ConnectionStrings--Default` | Server, database, SSL settings and login | Yes |
-| `Storage--ContainerSasUrl` | The blob container's SAS URL | Yes |
-| `APPLICATIONINSIGHTS-CONNECTION-STRING` | Application Insights | No |
-| `Azure-Postgres-User`, `Azure-Postgres-Password` | Replace the login in `ConnectionStrings--Default` | No, but add both or neither |
+**1. Stop the local system if it's running.** Press Ctrl+C in its terminal, then run `docker compose down`. Otherwise Compose keeps the containers that were started with the local settings.
 
-Build `.env` from the vault, then start the system:
+**2. Sign in to Azure.**
 
 ```
-powershell -ExecutionPolicy Bypass -File scripts/pull-secrets.ps1 -VaultName <vault> -DryRun
-powershell -ExecutionPolicy Bypass -File scripts/pull-secrets.ps1 -VaultName <vault>
-docker compose up --build
+az login
 ```
 
-The dry run lists what would come from the vault and writes nothing. `-ExecutionPolicy Bypass` applies only to that command, and it's needed because Windows blocks scripts by default.
+A browser window opens for you to sign in. Back in the terminal, the CLI lists your subscriptions and asks you to pick one: pick the subscription that holds the vault, even if it's the only one. To change it later:
+
+```
+az account list -o table
+az account set --subscription "<subscription name or ID>"
+```
+
+You only need to sign in once per machine, not before every run. It works from any of the terminals above.
+
+**3. Build `.env` from the vault.**
+
+```
+powershell -ExecutionPolicy Bypass -File scripts/pull-secrets.ps1 -VaultName dotnetcandidate9kv -DryRun
+powershell -ExecutionPolicy Bypass -File scripts/pull-secrets.ps1 -VaultName dotnetcandidate9kv
+```
+
+The dry run lists what would come from the vault and writes nothing, so it's a safe check that sign-in and vault access work. `-ExecutionPolicy Bypass` applies only to that command, and it's needed because Windows blocks scripts by default.
 
 The script overwrites `.env`, which is git-ignored, so secrets never reach the repo. A setting takes its value from the secret of the matching name, with `__` written as `--` and `_` as `-`. Settings with no matching secret keep the value from `.env.example`.
 
-The local `postgres` and `azurite` containers still start, but nothing uses their data.
+**4. Start the system.**
 
-**First run on an empty database.** Every container uses the same login, including `migrator`, so that login must be able to create tables. If `migrator` stops with `permission denied for schema public`, run this once as a server admin, against the database named in the connection string, because this permission is per database:
+```
+docker compose up --build
+```
+
+Then open http://localhost:8080. The local `postgres` and `azurite` containers still start, but nothing uses their data.
+
+**Which step failed?**
+
+| Where the error appears | What it means |
+| --- | --- |
+| The script, with `Can't list secrets` or `Can't read secret` | Azure sign-in or vault access. Run `az login` again, check the subscription with `az account show`, and check that your account can read the vault's secrets |
+| `migrator` in the `docker compose up` output, with `password authentication failed` | The database login stored in the vault |
+| `migrator`, with a timeout or `no pg_hba.conf entry` | The server's firewall doesn't allow your IP address |
+
+**Going back to local.** Stop the system with Ctrl+C and `docker compose down`, then run `cp .env.example .env`. While `.env` points at Azure, `docker compose up` migrates, seeds and writes to the Azure database.
+
+**Only when setting up a new database.** This isn't needed to run the submission. Every container uses the same login, including `migrator`, so that login must be able to create tables. If `migrator` stops with `permission denied for schema public`, run this once as a server admin, against the database named in the connection string, because this permission is per database:
 
 ```
 GRANT USAGE, CREATE ON SCHEMA public TO <user>;
 ```
 
 The tables `migrator` creates then belong to that user. An admin who signs in with Microsoft Entra uses a token as the password, from `az account get-access-token --resource-type oss-rdbms --query accessToken -o tsv`.
-
-**Going back to local.** Run `cp .env.example .env`. While `.env` points at Azure, `docker compose up` migrates, seeds and writes to the Azure database.
 
 ## Users
 
@@ -84,37 +128,15 @@ The UI's user switcher picks who you are; the API receives it as the `X-User-Id`
 | Omer | Analyst | Same as Dana |
 | Lena | Admin | All of the above, plus set positions and weights and publish snapshots |
 
-## Development
+## Tests
 
 Requires the .NET 10 SDK, Node.js and Docker.
 
-`dotnet run` doesn't read `.env`, so set the settings in your shell first. `.env.example` has a "From the host" value for each of these. In PowerShell:
-
-```
-docker compose up -d postgres azurite                  # local infrastructure, needs .env
-$env:ConnectionStrings__Default = "<From the host value>"
-$env:Storage__ConnectionString = "UseDevelopmentStorage=true"
-$env:Seed__MemberStatesPath = "../../data/member_states.csv"
-$env:Worker__Enabled = "true"                          # runs the worker inside the API
-
-dotnet run --project src/Meridian.Api -- --migrate-and-seed
-dotnet run --project src/Meridian.Api                  # http://localhost:5284
-```
-
-Then, in a second terminal:
-
-```
-cd web
-npm install
-npm run generate:api                                   # only if the API contract changed
-npx ng serve                                           # http://localhost:4200, proxies /api to port 5284
-```
-
-## Tests
-
 ```
 dotnet test
-cd web && npm test
+cd web
+npm install
+npm test
 ```
 
 Integration tests start a throwaway PostgreSQL through Testcontainers, so Docker must be running. They never touch the Azure database.
