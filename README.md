@@ -22,9 +22,18 @@ In both, the system runs on your machine at http://localhost:8080. The `migrator
 
 ### Before you start: where to run the commands
 
-All commands below are PowerShell, run from the repository's root folder (the one with `docker-compose.yml`). Any of these works:
+All commands below are PowerShell, and every one of them must run from the repository's root folder (the one with `docker-compose.yml`). Before running anything, go to that folder:
 
-- **A terminal.** Open PowerShell or Windows Terminal and `cd` to the repository folder.
+```
+cd <path to the cloned repository>
+ls docker-compose.yml
+```
+
+If `ls` can't find `docker-compose.yml`, you're in the wrong folder. Running from anywhere else gives errors such as `The argument 'scripts/pull-secrets.ps1' to the -File parameter does not exist` or `no configuration file provided: not found`.
+
+Any of these opens a terminal in the right place:
+
+- **A terminal.** Open PowerShell or Windows Terminal and `cd` to the repository folder as above.
 - **VS Code.** Open the repository folder, then **Terminal > New Terminal**. It opens in the root folder, in PowerShell by default on Windows.
 - **Visual Studio.** Open `meridian.slnx`, then **View > Terminal**. It opens a Developer PowerShell in the solution's folder, which is the root folder.
 
@@ -109,23 +118,7 @@ docker compose up --build
 
 Then open http://localhost:8080. The local `postgres` and `azurite` containers still start, but nothing uses their data.
 
-**Which step failed?**
-
-| Where the error appears | What it means |
-| --- | --- |
-| The script, with `Can't list secrets` or `Can't read secret` | Azure sign-in or vault access. Run `az login` again, check the subscription with `az account show`, and check that your account can read the vault's secrets |
-| `migrator` in the `docker compose up` output, with `password authentication failed` | The database login stored in the vault |
-| `migrator`, with a timeout or `no pg_hba.conf entry` | The server's firewall doesn't allow your IP address |
-
 **Going back to local.** Stop the system with Ctrl+C and `docker compose down`, then run `cp .env.example .env`. While `.env` points at Azure, `docker compose up` migrates, seeds and writes to the Azure database.
-
-**Only when setting up a new database.** This isn't needed to run the submission. Every container uses the same login, including `migrator`, so that login must be able to create tables. If `migrator` stops with `permission denied for schema public`, run this once as a server admin, against the database named in the connection string, because this permission is per database:
-
-```
-GRANT USAGE, CREATE ON SCHEMA public TO <user>;
-```
-
-The tables `migrator` creates then belong to that user. An admin who signs in with Microsoft Entra uses a token as the password, from `az account get-access-token --resource-type oss-rdbms --query accessToken -o tsv`.
 
 ## Users
 
