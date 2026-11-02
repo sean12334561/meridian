@@ -41,9 +41,11 @@ On macOS or Linux, install [PowerShell 7](https://learn.microsoft.com/powershell
 
 Docker Desktop must be running before any `docker compose` command.
 
+When a block below has more than one command, run them **one line at a time**: paste one line, press Enter, and wait for it to finish and check its output before the next. Pasting the whole block at once can hide an error from an earlier line.
+
 ### Run locally
 
-Requires Docker with Compose. Ports 8080, 5432 and 10000 must be free.
+Requires Docker with Compose. Ports 8080, 5432 and 10000 must be free. Run these one line at a time. The first line also undoes an Azure run (see [Going back to local](#going-back-to-local-after-an-azure-run)), so don't skip it.
 
 ```
 cp .env.example .env
@@ -52,16 +54,9 @@ docker compose up --build
 
 Open http://localhost:8080, pick a user, and upload a CSV from the Imports screen. The vote files aren't in this repo: use the ones supplied with the assignment in `candidate_data`.
 
+**A vote whose rows disagree inside one file.** If a file gives different details (title, date or session) for a vote that isn't stored yet, all its rows are marked Contradiction and the vote isn't created, because the file doesn't say which details are right. No conflict is opened and nothing appears on the Review screen: it shows only in that import's report. Uploading the same file again gives the same result. The vote is created once a file with consistent details for it arrives. In the sample data, this happens to MA/2024/025 in `assembly_export_2024_q1.csv`, which `assembly_export_2024_q1_rev2.csv` corrects.
+
 To stop, press Ctrl+C, then run `docker compose down`. Add `-v` to delete the local data as well.
-
-**If `migrator` fails with `password authentication failed for user "meridian"`.** The local database keeps the password it was created with, in a Docker volume, and ignores later changes to `.env`. This happens when the volume was created earlier with a different password. Delete the local data and start again:
-
-```
-docker compose down -v
-docker compose up --build
-```
-
-If it still fails, check that no other PostgreSQL is running on port 5432, such as one installed directly on Windows.
 
 ### Run with Azure
 
@@ -90,7 +85,7 @@ The vault holds these secrets:
 az login
 ```
 
-A browser window opens for you to sign in. Back in the terminal, the CLI lists your subscriptions and asks you to pick one: pick the subscription that holds the vault, even if it's the only one. To change it later:
+A browser window opens for you to sign in. Back in the terminal, the CLI lists your subscriptions and asks you to pick one: pick the subscription that holds the vault, even if it's the only one. If there's only one, type `1` and press Enter. To change it later (one line at a time):
 
 ```
 az account list -o table
@@ -99,14 +94,21 @@ az account set --subscription "<subscription name or ID>"
 
 You only need to sign in once per machine, not before every run. It works from any of the terminals above.
 
-**3. Build `.env` from the vault.**
+**3. Build `.env` from the vault.** Run these two lines **one at a time**, and check the output of each before the next.
+
+First, the dry run. It lists what would come from the vault and **writes nothing**, so it's a safe check that sign-in and vault access work:
 
 ```
 powershell -ExecutionPolicy Bypass -File scripts/pull-secrets.ps1 -VaultName dotnetcandidate9kv -DryRun
+```
+
+It ends with `... setting(s) would come from 'dotnetcandidate9kv'. Nothing written.` Then the real run, which writes `.env`:
+
+```
 powershell -ExecutionPolicy Bypass -File scripts/pull-secrets.ps1 -VaultName dotnetcandidate9kv
 ```
 
-The dry run lists what would come from the vault and writes nothing, so it's a safe check that sign-in and vault access work. `-ExecutionPolicy Bypass` applies only to that command, and it's needed because Windows blocks scripts by default.
+It must end with `Wrote .env with N setting(s) from 'dotnetcandidate9kv'.` If you don't see that line, `.env` was not changed and still has its previous settings, for example the local ones, so don't start the system yet. `-ExecutionPolicy Bypass` applies only to that command, and it's needed because Windows blocks scripts by default.
 
 The script overwrites `.env`, which is git-ignored, so secrets never reach the repo. A setting takes its value from the secret of the matching name, with `__` written as `--` and `_` as `-`. Settings with no matching secret keep the value from `.env.example`.
 
@@ -118,7 +120,23 @@ docker compose up --build
 
 Then open http://localhost:8080. The local `postgres` and `azurite` containers still start, but nothing uses their data.
 
-**Going back to local.** Stop the system with Ctrl+C and `docker compose down`, then run `cp .env.example .env`. While `.env` points at Azure, `docker compose up` migrates, seeds and writes to the Azure database.
+### Going back to local after an Azure run
+
+Once the script has run, `.env` holds the Azure values, and they win over the local ones:
+
+- `ConnectionStrings__Default` points at the Azure database, so `migrator`, `api` and `worker` all use it.
+- When `Storage__ContainerSasUrl` has a value, files go to Azure Blob Storage, even though the Azurite settings are still in the file.
+- `APPLICATIONINSIGHTS_CONNECTION_STRING` keeps sending telemetry to Application Insights.
+
+So until `.env` is replaced, `docker compose up` migrates, seeds and writes to Azure, even when you meant to run locally. To switch back, run these one line at a time:
+
+```
+docker compose down
+cp .env.example .env
+docker compose up --build
+```
+
+`cp` overwrites `.env` with the local template, which removes every Azure value. The local database and files are still in their Docker volumes, so you get back what you had before the Azure run. To go back to Azure later, run step 3 again.
 
 ## Users
 
@@ -142,30 +160,3 @@ npm test
 ```
 
 Integration tests start a throwaway PostgreSQL through Testcontainers, so Docker must be running. They never touch the Azure database.
-
-## Moving to production
-
-Deploying the application to Azure and production-grade authentication were out of scope, so none of this is built. It's what I'd do next, in this order of importance.
-
-**Authentication.** Replace the `X-User-Id` header with JWT bearer tokens from Microsoft Entra ID. People sign in through Entra, and Analyst and Admin become app roles in the token. Other systems calling the API use their own Entra application with an application role, through the client credentials flow, not a shared key. The `Analyst` and `Admin` policies stay as they are, and the acting user still comes from the principal, so the change is mainly the authentication handler and sign-in in the Angular app.
-
-**Access between Azure resources.** Use managed identities, so `api` and `worker` each reach Blob Storage, Key Vault and PostgreSQL with no stored credentials. That removes the SAS URL, the database password and `scripts/pull-secrets.ps1`, which only exists because the containers can't use `az login`. Key Vault is left for anything that still has to be a secret, such as third-party keys.
-
-**Network.** Keep PostgreSQL and storage off the public internet with private endpoints, in place of firewall rules for individual IP addresses.
-
-**Hosting.** The images are published to Azure Container Registry. `web`, `api` and `worker` run as separate Azure Container Apps, so the worker can scale on its own, and `migrator` runs as a one-off job before each release, with its own database login that is the only one allowed to change the schema. An Azure Function or WebJob could replace the `worker` container, but neither is worth it on its own: the image already runs the worker, a large import takes far longer than a Consumption plan Function's 10-minute limit allows, and a WebJob ties the worker to App Service.
-
-**Database performance.** Move off `Standard_B1ms`, but start with the disk, not the CPU. During the historic import on Azure, disk IOPS sat at 100% of the limit once loading began, with up to 85 operations queued, while CPU averaged 26% and burst credits barely moved. So raise the provisioned IOPS and memory first, then measure again before paying for more cores. The import's batch size is also worth revisiting, because a shorter batch means a shorter wait for a conflict decision.
-
-**Background jobs.** Test whether Azure Service Bus is worth it before replacing the job table. The table has real advantages: a job is saved in the same transaction as its import, so one can't exist without the other, and it needs no extra service. Service Bus would need an outbox to keep that guarantee, and lock renewal for jobs that run for many minutes. It would add dead-lettering and scaling on queue length, and would suit a Function worker. Switch only if measurements show the table or its polling becoming a limit.
-
-### Dividing the work between four developers
-
-I would try and devied the work so Each developer owns one area, so two people rarely change the same code at once.
-
-One developer on azure and running the system - Container Apps, Container Registry, managed identities, private endpoints, the separate migrations login, alerts, and separate service names for 'api' and 'worker' in Application Insights
-Two developers on backend work:
-	One for authentication and the API - JWT and Entra ID, app roles, application access for API callers, and removing the header authentication.
-	One for Database and background work - Sizing the database by measurement, batch size and decision waits, and the Service Bus test.
-One developer on frontend and quality - Front design improvments, Entra sign-in, tests for the screens that have none, and end-to-end tests of the main flows (for after the other developers had finished their work).
-	

@@ -4,34 +4,25 @@
 
 **Blob Storage or Cosmos DB.** Blob Storage is used for files, and PostgreSQL for structured records. Blob Storage is designed for unstructured text and binary objects, such as uploaded CSVs and PDFs. Cosmos DB would add a second database without a clear benefit here.
 
-**Membership overlap check in code, not in the database.** Postgres can enforce non-overlapping membership periods with an exclusion constraint, but that requires the `btree_gist` extension, which can't be enabled on the provided Azure server. The risk is low because membership is static seed data.
-
-**Indexes.** Unique indexes are used to enforce rules. Otherwise, only big tables that are searched by a narrow filter are indexed.
-
 ## Infrastructure
 
-**Background jobs in a PostgreSQL queue.** Background imports and snapshot calculations use a durable PostgreSQL job queue processed by a background worker. This reuses required infrastructure and keeps job creation transactional with application records. Azure Service Bus was unavailable in the supplied environment. Jobs retain progress, bounded retries and recovery information. For production, we would evaluate Service Bus when workload bursts or independently scaled workers justify a dedicated broker.
+**Background jobs in a PostgreSQL queue.** Imports and snapshot calculations run from a PostgreSQL job table processed by the worker. It reuses the database, and a job is saved in the same transaction as its import. Jobs keep progress, bounded retries and recovery information. Service Bus wasn't in the supplied environment; in production I'd adopt it only if bursts or independently scaled workers justify a dedicated broker.
 
-**Claim-check.** For the workers, I went with the claim-check pattern: the file is saved to Azure Blob Storage on import, and the worker reads the file when the job starts running.
+**Separate worker container, with claim-check.** The file is saved to Blob Storage on upload, and the worker reads it when the job starts. The worker runs in its own container, so it scales on its own (`--scale worker=N`), API restarts don't interrupt jobs, and it maps directly to a Container Apps worker.
 
-**Runtime topology: modular monolith, not microservices.** Why not microservices: all features share one transactional model. Splitting into services would mean a database per service, messaging between them, and eventual consistency, which adds risk to the system's main guarantee (approved data is never silently changed) for no benefit at this size.
+**Modular monolith, not microservices.** All features share one transactional model. Separate services would bring eventual consistency, which risks the main guarantee (approved data is never silently changed) for no benefit at this size.
 
-**Separate worker container, not a worker inside the API.**
-- The worker can be scaled independently of the API with `--scale worker=N`.
-- Restarting the API doesn't interrupt running jobs.
-- It matches how it would run in Azure if decided in production (a Container Apps worker).
-
-**Secrets.** Secrets are stored in Key Vault and loaded before the run through the Azure CLI, using the developer's own identity, because the containers can't use interactive login and I don't have permission to assign roles to a service principal. The script writes the secrets into the git-ignored `.env`, so they sit in plain text on the developer's machine. In production, I'd use a managed identity with the Key Vault configuration provider.
+**Secrets.** Secrets are kept in Key Vault and pulled into the git-ignored `.env` through the Azure CLI with the developer's own identity, because the containers can't sign in interactively and I can't assign roles to a service principal.
 
 ## Concurrency
 
-**Concurrent decisions.** A decision is a conditional update `WHERE status = 'Pending'`, so if two analysts decide the same conflict, only the first one applies. The second gets a 409 with the current state, and a `DecisionNotApplied` history row records the attempt. Import batches and decisions take the same advisory lock, so a decision can never interleave with an import changing the same approved data. The cost is that a decision may wait for the running batch to finish.
+**Concurrent decisions.** A decision is a conditional update `WHERE status = 'Pending'`: the second analyst gets a 409 with the current state, and a `DecisionNotApplied` history row. Import batches and decisions share an advisory lock, so a decision never interleaves with an import, at the cost of waiting for the running batch.
 
-**Import order not guaranteed.** The worker runs two jobs at once (`Worker__Concurrency=2`), so files uploaded back to back can apply in either order. If a revised file overtakes its original, the same conflicts open with the two sides swapped. Approved data still never changes without a decision, and each conflict shows both publication dates, so I accepted this instead of forcing imports to run one at a time.
+**Import order not guaranteed.** The worker runs two jobs at once, so files uploaded back to back can apply in either order, and a revised file that overtakes its original opens the same conflicts with the sides swapped. Approved data still never changes without a decision, and each conflict shows both publication dates, so I accepted this over running imports one at a time.
 
 ## Security
 
-**Header auth.** Authentication is an `X-User-Id` header with three demo users and a user switcher in the UI. This is a deliberate simplification, since production auth was out of scope, and anyone who can reach the API can fake the header. The `Analyst` and `Admin` policies are enforced on the API, and the acting user always comes from the authenticated principal, never from the request body.
+**Header auth.** An `X-User-Id` header with three demo users is a deliberate, spoofable simplification. The `Analyst` and `Admin` policies are enforced on the API, and the acting user always comes from the principal, never the request body.
 
 ## Domain rules
 
@@ -51,3 +42,21 @@
 - Snapshots copy their inputs (ballot, position, weight, source file) and are never modified, so a published index can be reproduced exactly.
 
 I chose this over full version tables (`valid_from`/`valid_to`) because it keeps reads simple, and the questions the institute asks are answered by the history log and the snapshot copies.
+
+## Moving to production
+
+- **Authentication.** Microsoft Entra ID tokens replace the `X-User-Id` header, with Analyst and Admin as app roles, and other systems calling the API get their own Entra application instead of a shared key. The policies stay, so the change is mainly the authentication handler and sign-in in Angular.
+- **Managed identities** for `api` and `worker` to reach Blob Storage, Key Vault and PostgreSQL. That removes the SAS URL, the database password and `scripts/pull-secrets.ps1`.
+- **Private endpoints** for PostgreSQL and storage, in place of firewall rules for individual IP addresses.
+- **Hosting.** Images in Azure Container Registry. `web`, `api` and `worker` run as separate Container Apps so the worker scales on its own, and `migrator` runs as a one-off job before each release, with the only login allowed to change the schema. An Azure Function doesn't fit the worker: a large import runs far past the Consumption plan's 10-minute limit.
+- **Database.** Move off `Standard_B1ms`, disk first: during the historic import IOPS sat at 100% of the limit with up to 85 queued operations, while CPU averaged 26%. Raise IOPS and memory, measure again, then revisit the batch size, since shorter batches mean shorter waits for a decision.
+
+## Dividing the work between four developers
+
+I would divide the work so each developer owns one area, and two people rarely change the same code at once.
+
+- **Azure and running the system (one developer):** Container Apps, Container Registry, managed identities, private endpoints, the separate migrations login, alerts, and separate service names for `api` and `worker` in Application Insights.
+- **Backend (two developers):**
+  - **Authentication and the API:** JWT and Entra ID, app roles, application access for API callers, and removing the header authentication.
+  - **Database and background work:** sizing the database by measurement, batch size and decision waits, and the Service Bus test.
+- **Frontend and quality (one developer):** design improvements, Entra sign-in, tests for the screens that have none, and end-to-end tests of the main flows once the other developers' work is in.
