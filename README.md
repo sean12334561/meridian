@@ -64,6 +64,15 @@ You need:
 
 The vault already holds a valid SAS for an existing blob container, and the database is already set up.
 
+The vault holds these secrets:
+
+| Secret | Setting | Required |
+| --- | --- | --- |
+| `ConnectionStrings--Default` | Server, port, database and SSL settings, with no login | Yes |
+| `Azure-Postgres-User`, `Azure-Postgres-Password` | The database login, which the script adds to `ConnectionStrings--Default` | Yes |
+| `Storage--ContainerSasUrl` | The blob container's SAS URL | Yes |
+| `APPLICATIONINSIGHTS-CONNECTION-STRING` | Application Insights | No |
+
 **1. Stop the local system if it's running.** Press Ctrl+C in its terminal, then run `docker compose down`. Otherwise Compose keeps the containers that were started with the local settings.
 
 **2. Sign in to Azure.**
